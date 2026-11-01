@@ -46,6 +46,7 @@ import type { BrokerageControls } from "./BrokeragePanel";
 import { useBank } from "./useBank";
 import { useBrokerage } from "./useBrokerage";
 import { SchoolDashboard } from "./SchoolDashboard";
+import { SchoolNotice } from "./SchoolNotice";
 import { useSchool } from "./useSchool";
 
 const TownGame = dynamic(() => import("./TownGame"), {
@@ -88,7 +89,7 @@ export function FinanceTown() {
   const brokerageClient = useBrokerage(mode === "manual" || schoolOpen);
   const brokerageState = brokerageClient.state;
   // BluPeak (Plaid) rides on the same local session: locking drops its balances from the page too.
-  const schoolClient = useSchool(schoolOpen && brokerageClient.access === "unlocked");
+  const schoolClient = useSchool(brokerageClient.access === "unlocked", schoolOpen);
   const bankClient = useBank(mode === "manual" && brokerageClient.access === "unlocked");
   const bankState = bankClient.state;
 
@@ -305,6 +306,7 @@ export function FinanceTown() {
             <kbd>E</kbd> {LABELS[prompt]}
           </button>
         )}
+        {!bankOpen && !schoolOpen && <SchoolNotice states={schoolClient.states} unlocked={brokerageClient.access === "unlocked"} onOpen={() => setSchoolOpen(true)} />}
         {toast && <div className="ft-toast" role="status">{toast}</div>}
         <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>

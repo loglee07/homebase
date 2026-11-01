@@ -20,8 +20,9 @@ const call = (path: string, method: "GET" | "POST", body?: unknown) => apiCall(`
 /**
  * Talks only to this app's own loopback API. Calendars are held in React state, never in localStorage or the console.
  * Opening the school reads the server's cached copy; only a refresh (or the first open with nothing cached) fetches a feed.
+ * Once loaded, the calendars stay in memory after the school closes (the town notice reads them); locking drops them.
  */
-export function useSchool(unlocked: boolean): SchoolClient {
+export function useSchool(unlocked: boolean, active: boolean): SchoolClient {
   const [states, setStates] = useState<SchoolState[]>([]);
   const [fixtures, setFixtures] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -68,6 +69,7 @@ export function useSchool(unlocked: boolean): SchoolClient {
       }, 0);
       return () => clearTimeout(t);
     }
+    if (!active) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -89,7 +91,7 @@ export function useSchool(unlocked: boolean): SchoolClient {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [unlocked, refresh]);
+  }, [unlocked, active, refresh]);
 
   return { states, fixtures, loaded, busy, message, refresh, refreshAll };
 }

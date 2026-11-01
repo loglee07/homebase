@@ -64,9 +64,8 @@ export function BluPeakPanel({ controls, manual }: Props) {
 
   const head = (
     <h3 className="bk-fold">
-      <button className="bk-fold-btn" aria-expanded={!collapsed} onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
+      <button className="bk-fold-btn" title={collapsed ? "Expand" : "Minimize"} aria-expanded={!collapsed} onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
         <span aria-hidden>{collapsed ? "▸" : "▾"}</span> <span aria-hidden>🏔️</span> BluPeak
-        <span className="bk-fold-hint">{collapsed ? "Show" : "Minimize"}</span>
       </button>
     </h3>
   );

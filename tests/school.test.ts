@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseFeed, splitTitle, wallToInstant } from "@/lib/server/ics";
 import { hostAllowed, parseFeedUrl, redirectAllowed, safeEventUrl } from "@/lib/server/schoolHosts";
-import { addDays, combine, eventsOn, monthCells, nextSevenDays, occursOn, sortEvents, startDay, timeLabel, upcoming, type SchoolEvent } from "@/lib/school";
+import { addDays, combine, eventsOn, monthCells, nextSevenDays, occursOn, sortEvents, startDay, timeLabel, townNotice, upcoming, type SchoolEvent, type SchoolState } from "@/lib/school";
 
 const NOW = new Date("2026-11-04T18:00:00Z");
 const cal = (...events: string[]) => ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//t//EN", ...events, "END:VCALENDAR"].join("\r\n");
@@ -212,5 +212,39 @@ describe("upcoming", () => {
     expect(u.days[0].events.map((x) => x.id)).toEqual(["early", "late", "nodue"]);
     expect(u.emptyDays).toEqual(["2026-11-05", "2026-11-06", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11"]);
     expect(u.days.length + u.emptyDays.length).toBe(8);
+  });
+});
+
+describe("town notice", () => {
+  const e = (id: string, school: "sdsu" | "sdccd", start: string, allDay: boolean, extra: Partial<SchoolEvent> = {}): SchoolEvent => ({
+    id: `${school}:${id}`, school, title: id, course: null, start, end: null, allDay, kind: "event", dueTimeUnknown: false, location: null, url: null, cancelled: false, ...extra,
+  });
+  const st = (school: "sdsu" | "sdccd", events: SchoolEvent[], extra: Partial<SchoolState> = {}): SchoolState => ({
+    school, configured: true, events, updatedAt: "2026-11-04T10:00:00.000Z", stale: false, lastError: null, lastAttemptAt: null, cooldownUntil: null, ...extra,
+  });
+  const now = new Date(2026, 10, 4, 12, 0, 0); // local noon
+  const at = (h: number) => new Date(2026, 10, 4, h, 0, 0).toISOString();
+
+  it("counts today's items across both schools and picks the next one still ahead", () => {
+    const n = townNotice(
+      [st("sdsu", [e("past", "sdsu", at(9), false), e("later", "sdsu", at(15), false)]), st("sdccd", [e("dateonly", "sdccd", "2026-11-04", true, { kind: "assignment", dueTimeUnknown: true }), e("tomorrow", "sdccd", "2026-11-05", true)])],
+      now,
+    );
+    expect(n).toMatchObject({ status: "ok", count: 3, stale: false });
+    expect(n.next?.id).toBe("sdsu:later");
+  });
+  it("leaves cancelled items out and has no next when nothing is ahead", () => {
+    const n = townNotice([st("sdsu", [e("gone", "sdsu", at(15), false, { cancelled: true }), e("past", "sdsu", at(9), false)])], now);
+    expect(n).toMatchObject({ status: "ok", count: 1, next: null });
+  });
+  it("marks stale data and unavailable or unconfigured schools", () => {
+    expect(townNotice([st("sdsu", [], { stale: true, lastError: "network" })], now)).toMatchObject({ status: "ok", stale: true });
+    expect(townNotice([st("sdsu", [], { updatedAt: null, lastError: "timeout" })], now)).toMatchObject({ status: "unavailable", stale: true, count: 0 });
+    expect(townNotice([st("sdsu", [], { configured: false, updatedAt: null })], now).status).toBe("none");
+    expect(townNotice([], now).status).toBe("none");
+  });
+  it("uses a school's last good copy while the other is unavailable", () => {
+    const n = townNotice([st("sdsu", [e("a", "sdsu", at(15), false)]), st("sdccd", [], { updatedAt: null, lastError: "network" })], now);
+    expect(n).toMatchObject({ status: "ok", count: 1, stale: true });
   });
 });

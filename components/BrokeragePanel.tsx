@@ -81,9 +81,8 @@ export function BrokeragePanel({ controls, manual }: Props) {
   const collapsed = useSyncExternalStore(collapsedStore.subscribe, collapsedStore.getSnapshot, collapsedStore.getServerSnapshot) === "1";
   const head = (
     <h3 className="bk-fold">
-      <button className="bk-fold-btn" aria-expanded={!collapsed} onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
+      <button className="bk-fold-btn" title={collapsed ? "Expand" : "Minimize"} aria-expanded={!collapsed} onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
         <span aria-hidden>{collapsed ? "▸" : "▾"}</span> <span aria-hidden>🏦</span> Connected brokerages
-        <span className="bk-fold-hint">{collapsed ? "Show" : "Minimize"}</span>
       </button>
     </h3>
   );

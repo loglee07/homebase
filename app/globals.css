@@ -50,6 +50,11 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .ft-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--paper); font-family: var(--font-pixel); font-size: 20px; }
 .ft-help { position: absolute; left: 12px; bottom: 8px; margin: 0; font-size: 12px; color: #e9f2d8; background: rgba(0, 0, 0, 0.45); padding: 3px 8px; border-radius: 4px; }
 .ft-prompt { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 3px solid var(--wood-d); border-radius: 6px; padding: 8px 16px; font-family: var(--font-pixel); font-size: 20px; cursor: pointer; box-shadow: 0 4px 0 var(--wood-d); }
+.ft-notice { position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 8px; max-width: min(420px, 70%); text-align: left; background: var(--paper); color: var(--ink); border: 3px solid var(--wood-d); border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 3px 0 var(--wood-d); }
+.ft-notice:focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
+.ft-notice-text { display: flex; flex-direction: column; min-width: 0; }
+.ft-notice-text small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ft-notice-stale { font-size: 11px; font-weight: 700; color: #7a4b00; background: #fff3c4; border: 1px solid var(--gold); border-radius: 4px; padding: 1px 5px; }
 .ft-toast { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: #fff3c4; border: 3px solid var(--gold); color: var(--ink); border-radius: 6px; padding: 8px 16px; font-weight: 600; max-width: 90%; text-align: center; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3); }
 
 /* bank dashboard */
@@ -172,7 +177,7 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .bk-fold { margin: 0; }
 .bk-fold-btn { all: unset; box-sizing: border-box; display: flex; width: 100%; gap: 6px; align-items: center; cursor: pointer; font: inherit; border-radius: 4px; padding: 2px 0; }
 .bk-fold-btn:focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
-.bk-fold-hint { margin-left: auto; font-size: 14px; font-weight: 600; color: #1b5fa8; text-decoration: underline; }
+.bk-fold-btn > span:first-child { font-size: 18px; line-height: 1; color: #1b5fa8; }
 .bk-sources { margin: 0; }
 .bk-sandbox { background: #fff7d6; border: 2px solid #d9b23f; border-radius: 4px; padding: 6px 10px; font-size: 15px; margin: 6px 0; max-width: 62ch; }
 

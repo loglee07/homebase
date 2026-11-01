@@ -40,6 +40,7 @@ Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view 
 | Cottage (home tier 1) | done: custom `public/sprites/home_1.png` (64x72) | bottom-center, x=112, y=128 | x80 y72 w64 h56 | Chimney smoke near (129,60) |
 | Manor (home tier 2) | done: custom `public/sprites/home_2.png` (96x75) | bottom-center, x=112, y=128 | x64 y56 w96 h72 | Chimney smoke near (92,56); bush slots at (96,134) and (128,134) |
 | Bank | done: custom `public/sprites/bank.png` (96x75) | bottom-center, x=368, y=128 | x320 y56 w96 h72 | The "BANK" sign is not legible at this size; the coin is |
+| School | done: custom `public/sprites/school.png` (96x75) | bottom-center, x=240, y=128 | x192 y56 w96 h72 | Nearest-sampled from high-detail source like bank/home; code-drawn fallback in `game/art.ts` if missing |
 | Fountain | 32x32, 2 frames | bottom-center, x=240, y=192 | x226 y174 w28 h18 | Frames swap every 450ms (water shimmer) |
 | Bench | 20x10 | bottom-center | w18 h5 | Used at (206,238), (274,238) |
 | Mailbox | 10x16 | bottom-center, (88,152) | x85 y148 w6 h4 | |

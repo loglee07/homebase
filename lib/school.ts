@@ -142,3 +142,29 @@ export function monthCells(year: number, month0: number): (string | null)[] {
 
 /** Merged events from every school: ids are already school-prefixed, so two schools never collide. */
 export const combine = (states: readonly Pick<SchoolState, "events">[]): SchoolEvent[] => states.flatMap((s) => s.events);
+
+export interface TownNotice {
+  /** "none": no feed link is set. "unavailable": links are set but nothing has loaded yet. */
+  status: "ok" | "unavailable" | "none";
+  /** Calendar items today (cancelled ones left out). Not a count of unfinished work: submission status is unknown. */
+  count: number;
+  /** The first item still ahead: a timed item later today or after, or any date-only item from today on. */
+  next: SchoolEvent | null;
+  /** At least one school is showing its last good copy, or has none because its refresh failed. */
+  stale: boolean;
+}
+
+/** Summary for the town screen, from calendars already in memory. Never fetches. */
+export function townNotice(states: readonly SchoolState[], now: Date): TownNotice {
+  const configured = states.filter((s) => s.configured);
+  if (configured.length === 0) return { status: "none", count: 0, next: null, stale: false };
+  const loaded = configured.filter((s) => s.updatedAt);
+  const stale = configured.some((s) => s.stale || s.lastError !== null);
+  if (loaded.length === 0) return { status: "unavailable", count: 0, next: null, stale };
+  const today = localDayKey(now);
+  const live = combine(loaded).filter((e) => !e.cancelled);
+  const ahead = live.filter((e) => (e.allDay ? startDay(e) >= today : new Date(e.start).getTime() >= now.getTime()));
+  const firstDay = ahead.map(startDay).sort()[0];
+  const next = firstDay === undefined ? null : sortEvents(ahead.filter((e) => startDay(e) === firstDay))[0];
+  return { status: "ok", count: live.filter((e) => occursOn(e, today)).length, next, stale };
+}

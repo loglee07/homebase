@@ -192,9 +192,8 @@ export function SchoolDashboard({ access, school, onClose }: Props) {
               <article className="ft-card sc-feeds" aria-labelledby="school-feeds">
                 <div className="sc-feeds-bar">
                   <h3 id="school-feeds" className="bk-fold">
-                    <button className="bk-fold-btn" aria-expanded={!collapsed} aria-controls="school-feeds-body" onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
+                    <button className="bk-fold-btn" title={collapsed ? "Expand" : "Minimize"} aria-expanded={!collapsed} aria-controls="school-feeds-body" onClick={() => collapsedStore.write(collapsed ? "0" : "1")}>
                       <span aria-hidden>{collapsed ? "▸" : "▾"}</span> Calendars
-                      <span className="bk-fold-hint">{collapsed ? "Show" : "Minimize"}</span>
                     </button>
                   </h3>
                   {collapsed && (
