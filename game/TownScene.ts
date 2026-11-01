@@ -3,8 +3,12 @@ import type { TownBridge, InteractableId } from "./bridge";
 import type { HomeTier } from "@/lib/milestones";
 import { drawBuildings, drawGround, drawProps, type Dir } from "./art";
 import {
+  CF, FENCE_FRAME, OAK, PLAYER_ORIGIN_Y, addDecorFrames, drawLicensedGround, licensedLoaded, playerFrame, probeLoaded,
+  queueLicensed, queueProbe,
+} from "./licensed";
+import {
   BANK_CENTER_X, BANK_FOOTPRINT, BENCHES, BUILDING_BASE_Y, BUSHES, FENCES, FOUNTAIN, FOUNTAIN_BLOCK, HOME_CENTER_X,
-  HOME_FOOTPRINT, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, pondBlocks, type Rect,
+  HOME_FOOTPRINT, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, pondBlocks, waterBlocks, type Rect,
 } from "./layout";
 
 const SPEED = 62;
@@ -21,6 +25,9 @@ export class TownScene extends Phaser.Scene {
   private keys!: Record<"up" | "down" | "left" | "right" | "w" | "a" | "s" | "d" | "e", Phaser.Input.Keyboard.Key>;
   private dir: Dir = "down";
   private walkClock = 0;
+  private idleClock = 0;
+  private licensed = false;
+  private shutDown = false;
   private prompt: InteractableId | null = null;
   private tier: HomeTier = 1;
 
@@ -28,29 +35,64 @@ export class TownScene extends Phaser.Scene {
     super("town");
   }
 
+  preload() {
+    queueProbe(this);
+  }
+
   create() {
+    // Licensed art is optional: load it only if the probe file exists, else build with the code-drawn art.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => (this.shutDown = true));
+    if (!probeLoaded(this)) return this.build();
+    queueLicensed(this);
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      if (this.shutDown) return;
+      this.licensed = licensedLoaded(this);
+      if (this.licensed) addDecorFrames(this);
+      this.build();
+    });
+    this.load.start();
+  }
+
+  private build() {
     drawProps(this);
     drawBuildings(this);
     const solids: Rect[] = [];
     const blockedForFlowers = (x: number, y: number) =>
       (x > 56 && x < 168 && y > 40 && y < 150) || (x > 312 && x < 424 && y > 40 && y < 150) || (x > 216 && x < 264 && y > 150 && y < 200);
-    drawGround(this, blockedForFlowers);
+    (this.licensed ? drawLicensedGround : drawGround)(this, blockedForFlowers);
     this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(0);
 
     this.blockers = this.physics.add.staticGroup();
     this.houseBlockers = this.physics.add.staticGroup();
 
     for (const t of TREES) {
-      this.add.image(t.x, t.y + 1, `tree_${t.kind}`).setOrigin(0.5, 1).setDepth(t.y);
+      if (this.licensed) {
+        const oak = t.kind === "oak2" || t.kind === "blossom" ? OAK.shaded : OAK.plain;
+        this.add.image(t.x, t.y + 1, CF.oak, oak.frame).setOrigin(0.5, oak.originY).setDepth(t.y);
+      } else {
+        this.add.image(t.x, t.y + 1, `tree_${t.kind}`).setOrigin(0.5, 1).setDepth(t.y);
+      }
       solids.push({ x: t.x - 4, y: t.y - 5, w: 8, h: 5 });
     }
     for (const p of [...LAMPS, ...BENCHES, MAILBOX, ...FENCES]) if (p.solid) solids.push(p.solid);
-    for (const l of LAMPS) this.add.image(l.x, l.y + 1, "lamp").setOrigin(0.5, 1).setDepth(l.y);
+    for (const l of LAMPS) {
+      if (this.licensed) this.add.image(l.x, l.y + 1, CF.decor, "lamp").setOrigin(0.5, 1).setDepth(l.y);
+      else this.add.image(l.x, l.y + 1, "lamp").setOrigin(0.5, 1).setDepth(l.y);
+    }
     for (const b of BENCHES) this.add.image(b.x, b.y + 1, "bench").setOrigin(0.5, 1).setDepth(b.y);
     this.add.image(MAILBOX.x, MAILBOX.y + 1, "mailbox").setOrigin(0.5, 1).setDepth(MAILBOX.y);
-    for (const f of FENCES) this.add.image(f.x, f.y + 1, "fence").setOrigin(0.5, 1).setDepth(f.y);
-    for (const r of ROCKS) this.add.image(r.x, r.y, "rock").setOrigin(0.5, 1).setDepth(r.y);
-    for (const b of BUSHES) this.add.image(b.x, b.y, "bush").setOrigin(0.5, 1).setDepth(b.y);
+    FENCES.forEach((f, i) => {
+      if (this.licensed) {
+        this.add.image(f.x, f.y + 1, CF.fences, i % 2 ? FENCE_FRAME.right : FENCE_FRAME.left).setOrigin(0.5, 13 / 16).setDepth(f.y);
+      } else {
+        this.add.image(f.x, f.y + 1, "fence").setOrigin(0.5, 1).setDepth(f.y);
+      }
+    });
+    ROCKS.forEach((r, i) => {
+      if (this.licensed) this.add.image(r.x, r.y, CF.decor, i % 2 ? "rockSmall" : "rockLarge").setOrigin(0.5, 1).setDepth(r.y);
+      else this.add.image(r.x, r.y, "rock").setOrigin(0.5, 1).setDepth(r.y);
+    });
+    for (const b of BUSHES) this.bush(b.x, b.y);
 
     this.fountain = this.add.image(FOUNTAIN.x, FOUNTAIN.y + 1, "fountain_0").setOrigin(0.5, 1).setDepth(FOUNTAIN.y);
     solids.push(FOUNTAIN_BLOCK);
@@ -58,17 +100,20 @@ export class TownScene extends Phaser.Scene {
 
     this.add.image(BANK_CENTER_X, BUILDING_BASE_Y + 1, "bank").setOrigin(0.5, 1).setDepth(BUILDING_BASE_Y);
     solids.push(BANK_FOOTPRINT);
-    solids.push(...pondBlocks());
+    solids.push(...(this.licensed ? waterBlocks() : pondBlocks()));
     for (const s of solids) this.addBlock(this.blockers, s);
 
     this.home = this.add.image(HOME_CENTER_X, BUILDING_BASE_Y + 1, "home_1").setOrigin(0.5, 1).setDepth(BUILDING_BASE_Y);
 
     // player
-    this.shadow = this.add.image(SPAWN.x, SPAWN.y, "shadow").setOrigin(0.5, 0.5);
-    this.player = this.physics.add.sprite(SPAWN.x, SPAWN.y, "player_down_0").setOrigin(0.5, 1);
+    // the pack's player frames carry their own shadow
+    this.shadow = this.add.image(SPAWN.x, SPAWN.y, "shadow").setOrigin(0.5, 0.5).setVisible(!this.licensed);
+    this.player = this.licensed
+      ? this.physics.add.sprite(SPAWN.x, SPAWN.y, CF.player, 0).setOrigin(0.5, PLAYER_ORIGIN_Y)
+      : this.physics.add.sprite(SPAWN.x, SPAWN.y, "player_down_0").setOrigin(0.5, 1);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setSize(8, 5);
-    body.setOffset((this.player.width - 8) / 2, this.player.height - 5);
+    body.setOffset((this.player.width - 8) / 2, this.player.height * this.player.originY - 5);
     this.physics.world.setBounds(10, 30, WORLD_W - 20, WORLD_H - 36);
     body.setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.blockers);
@@ -94,6 +139,11 @@ export class TownScene extends Phaser.Scene {
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.puff() });
   }
 
+  private bush(x: number, y: number) {
+    const img = this.licensed ? this.add.image(x, y, CF.decor, "flowerBush") : this.add.image(x, y, "bush");
+    return img.setOrigin(0.5, 1).setDepth(y);
+  }
+
   private addBlock(group: Phaser.Physics.Arcade.StaticGroup, r: Rect) {
     const rect = this.add.rectangle(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h).setVisible(false);
     this.physics.add.existing(rect, true);
@@ -110,7 +160,7 @@ export class TownScene extends Phaser.Scene {
     this.homeDecor = [];
     if (tier === 2) {
       for (const [x, y] of [[96, 134], [128, 134]]) {
-        this.homeDecor.push(this.add.image(x, y, "bush").setOrigin(0.5, 1).setDepth(y));
+        this.homeDecor.push(this.bush(x, y));
       }
     }
     // never leave the player inside the new footprint
@@ -176,12 +226,19 @@ export class TownScene extends Phaser.Scene {
       this.player.setVelocity((vx / len) * SPEED, (vy / len) * SPEED);
       this.dir = vy !== 0 && Math.abs(vy) >= Math.abs(vx) ? (vy < 0 ? "up" : "down") : vx < 0 ? "left" : "right";
       this.walkClock += delta;
+      this.idleClock = 0;
     } else {
       this.player.setVelocity(0, 0);
       this.walkClock = 0;
+      this.idleClock += delta;
     }
-    const frame = moving ? WALK_FRAMES[Math.floor(this.walkClock / 130) % WALK_FRAMES.length] : 0;
-    this.player.setTexture(`player_${this.dir}_${frame}`);
+    if (this.licensed) {
+      this.player.setFrame(playerFrame(this.dir, moving, moving ? this.walkClock : this.idleClock));
+      this.player.setFlipX(this.dir === "left");
+    } else {
+      const frame = moving ? WALK_FRAMES[Math.floor(this.walkClock / 130) % WALK_FRAMES.length] : 0;
+      this.player.setTexture(`player_${this.dir}_${frame}`);
+    }
     this.player.setDepth(this.player.y);
     this.shadow.setPosition(this.player.x, this.player.y - 2).setDepth(this.player.y - 0.5);
 

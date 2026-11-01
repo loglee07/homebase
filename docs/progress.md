@@ -33,5 +33,11 @@
 - Not verified: the in-app preview launcher (`preview_start`) only reads `.claude/launch.json` from the session's starting folder, which here is a scratch folder, so it could not load this project's config. Works once a session is opened in this folder.
 - ESLint audit findings (16 moderate, dev-only) left as documented; no forced upgrades/downgrades.
 
+## Licensed art integration (done, local only)
+- Cute Fantasy Free (Kenmi) loaded at runtime from gitignored `public/licensed/cute-fantasy/`; procedural art is the fallback. See `docs/assets.md`.
+- Pack used for: autotiled grass/path/pond, flowers and tufts, oak trees, lamps, rocks, flower bushes, fences, player. Pond is now tile-aligned in pack mode (`isWater`, `waterBlocks`).
+- Still placeholders: cottage, manor, bank, fountain, bench, mailbox, blossom/autumn trees (list with sizes/anchors in `docs/assets.md`).
+- Checked: no licensed files tracked or in git history; remote `origin/main` is only the initial commit. Verified in the browser with and without the pack folder; no new automated tests.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.

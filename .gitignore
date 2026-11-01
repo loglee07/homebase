@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .dev.log
+
+# licensed third-party art (Cute Fantasy Free): never commit, see docs/assets.md
+/public/licensed/
+*.zip

@@ -8,7 +8,7 @@ Personal desktop-browser dashboard as a cozy pixel-art town. Walk a character in
 - Next.js 16 (App Router) + React 19 for UI/dashboards; Phaser 4 for the town. TypeScript strict.
 - **Money is integer cents** (`lib/money.ts`). Never use float dollars. Debts are stored as positive amounts owed.
 - **Sample data only** (`lib/sampleData.ts`). Any future financial connection must be read-only. No real account connections yet.
-- All pixel art is procedural (`game/art.ts`, drawn to canvas textures). No image assets. World is 480x320 (16px tiles), scaled with `Phaser.Scale.FIT` + `pixelArt`.
+- Pixel art is procedural by default (`game/art.ts`, drawn to canvas textures). **No image assets are committed.** Optionally, the licensed Cute Fantasy Free pack (Kenmi, non-commercial, no redistribution) is loaded at runtime from the gitignored `public/licensed/cute-fantasy/`; without it the scene falls back to the procedural art. Never commit the pack or anything derived from it. Setup and the placeholder sprite list: `docs/assets.md`. World is 480x320 (16px tiles), scaled with `Phaser.Scale.FIT` + `pixelArt`.
 - React and Phaser talk only through `game/bridge.ts` (`TownBridge`). Phaser code must stay behind the `ssr: false` dynamic import (`components/TownGame.tsx`).
 - Milestones (`lib/milestones.ts`): net worth >= $100,000.00 upgrades home to tier 2. One-way, never downgraded. Persisted in `localStorage` key `finance-town:milestones:v1`, read via `useSyncExternalStore`. The demo scenario is intentionally NOT persisted.
 - Controls: WASD/arrows move, `E` interacts (Enter/Space deliberately unused: they would fight with focused buttons). Dashboard pauses the scene and releases key capture.

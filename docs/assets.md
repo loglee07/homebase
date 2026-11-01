@@ -1,0 +1,51 @@
+# Art assets
+
+## Licensed art (optional, not in this repo)
+
+The town uses the **Cute Fantasy Free** pack by **Kenmi** when it is present locally:
+https://kenmi-art.itch.io/cute-fantasy-rpg
+
+License of the free version: non-commercial projects only, modifications allowed, **no redistribution or resale, even if modified**. This repo is public, so none of the pack's files, crops, edits or atlases are committed. `/public/licensed/` and `*.zip` are gitignored.
+
+### Install locally
+1. Download the free pack from the itch.io page above and unzip it.
+2. Copy the contents so these files exist (names and folders exactly as in the pack):
+
+```
+public/licensed/cute-fantasy/
+  Tiles/Grass_Middle.png
+  Tiles/Path_Tile.png
+  Tiles/Water_Tile.png
+  Outdoor decoration/Outdoor_Decor_Free.png
+  Outdoor decoration/Fences.png
+  Outdoor decoration/Oak_Tree_Small.png
+  Player/Player.png
+```
+3. Reload. No build step: files are served from `public/` and loaded at runtime.
+
+### Fallback
+If `Tiles/Grass_Middle.png` is missing, the scene skips the pack entirely and uses the code-drawn art in `game/art.ts` (the browser logs one 404 for that probe file). If the probe exists but any other required file fails to load, it also falls back. A fresh clone runs without the pack.
+
+### How it is wired
+`game/licensed.ts` holds the file list, sprite-sheet crops, the 16px autotile logic for path and water, and player frame math. `TownScene.create()` loads the probe in `preload()`, then loads the rest and calls `build()`. All pack-specific branches check `this.licensed`.
+
+### What uses the pack
+Grass, dirt path and pond tiles (autotiled), grass tufts and flowers, oak trees, lamp posts, rocks, flower bushes, rail fences, and the player (idle/walk, 4 directions; left is the right-facing row flipped).
+
+## Placeholders to replace (still code-drawn)
+Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view with the sprite's base on the ground line. Anchor = the point placed on the layout coordinate (`game/layout.ts`). Footprint = what blocks walking.
+
+| Sprite | Source size | Anchor | Collision footprint | Notes |
+|---|---|---|---|---|
+| Cottage (home tier 1) | 64x64 | bottom-center, x=112, y=128 | x80 y72 w64 h56 | Door bottom-center; chimney near (131, 66) for smoke |
+| Manor (home tier 2) | 96x80 | bottom-center, x=112, y=128 | x64 y56 w96 h72 | Clearly bigger and richer than the cottage; chimney near (89, 50); bush slots at (96,134) and (128,134) |
+| Bank | 96x80 | bottom-center, x=368, y=128 | x320 y56 w96 h72 | Door bottom-center; must read as a bank, distinct from the manor |
+| Fountain | 32x32, 2 frames | bottom-center, x=240, y=192 | x226 y174 w28 h18 | Frames swap every 450ms (water shimmer) |
+| Bench | 20x10 | bottom-center | w18 h5 | Used at (206,238), (274,238) |
+| Mailbox | 10x16 | bottom-center, (88,152) | x85 y148 w6 h4 | |
+| Blossom tree | 32x48 frame, same layout as `Oak_Tree_Small.png` frame 1 | trunk base | w8 h5 at trunk base | Currently shows a plain oak |
+| Autumn tree | 32x48 frame, same as above | trunk base | w8 h5 | Currently shows a plain oak |
+| Plaza paving (optional) | 16x16 tiles, 3x3 blob + inner corners like `Path_Tile.png` | tile grid | none | Plaza currently reuses the dirt path |
+| Spark / smoke puff (optional) | 7x7 / 6x6 | center | none | Effects only |
+
+Source dimensions for buildings keep today's layout, so no layout changes are needed. The pack's own house is 96x128 and was not used (wrong scale for this layout and not a bank).

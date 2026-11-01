@@ -27,6 +27,16 @@ export const POND = { cx: 96, cy: 256, rx: 48, ry: 29 };
 export const inPond = (x: number, y: number) =>
   ((x - POND.cx) / POND.rx) ** 2 + ((y - POND.cy) / POND.ry) ** 2 <= 1;
 
+/** Tile-aligned pond for the tile-based art: every tile whose center is inside the ellipse. */
+export const isWater = (c: number, r: number) => inPond(c * TILE + TILE / 2, r * TILE + TILE / 2);
+export function waterBlocks(): Rect[] {
+  const out: Rect[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) if (isWater(c, r)) out.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE });
+  }
+  return out;
+}
+
 /** Bottom of every building; the door faces the walk tile row below it. */
 export const BUILDING_BASE_Y = 128;
 export const HOME_CENTER_X = 112;
