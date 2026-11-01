@@ -1,17 +1,34 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TRANSACTION_KIND, type Account, type FinanceSummary, type Transaction } from "@/lib/finance";
 import { formatCents } from "@/lib/money";
 import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/lib/milestones";
+import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manualAccounts";
+import { AccountForm } from "./AccountForm";
+
+export interface ManualControls {
+  load: ManualLoad;
+  saveFailed: boolean;
+  onAdd: (v: ValidAccount) => void;
+  onUpdate: (id: string, v: ValidAccount) => void;
+  onDelete: (id: string) => void;
+  /** Copies unreadable saved data to a backup key, then starts fresh. */
+  onResetUnreadable: () => void;
+}
 
 interface Props {
+  mode: Mode;
   accounts: Account[];
   summary: FinanceSummary;
+  /** Demo mode only. My accounts mode never shows sample transactions. */
   transactions: Transaction[];
   homeTier: HomeTier;
+  manual?: ManualControls;
   onClose: () => void;
 }
+
+type FormState = { kind: "add" } | { kind: "edit"; id: string } | null;
 
 const GROUPS: { kind: Account["kind"]; title: string; icon: string }[] = [
   { kind: "checking", title: "Checking", icon: "🪙" },
@@ -22,9 +39,17 @@ const GROUPS: { kind: Account["kind"]; title: string; icon: string }[] = [
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtUpdated = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function BankDashboard({ accounts, summary, transactions, homeTier, onClose }: Props) {
+export function BankDashboard({ mode, accounts, summary, transactions, homeTier, manual, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const [form, setForm] = useState<FormState>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const isManual = mode === "manual";
+  const editable = isManual && manual?.load.status === "ok";
+  const manualAccounts = accounts.length;
   const names = Object.fromEntries(accounts.map((a) => [a.id, a.name]));
   const totals: Record<Account["kind"], number> = {
     checking: summary.checkingCents,
@@ -34,21 +59,45 @@ export function BankDashboard({ accounts, summary, transactions, homeTier, onClo
   };
   const status = milestoneStatus(homeTier, summary.netWorthCents);
 
+  const openForm = (next: FormState) => {
+    returnFocus.current = document.activeElement as HTMLElement | null;
+    setConfirmId(null);
+    setForm(next);
+  };
+  const closeForm = () => {
+    setForm(null);
+    // let the trigger re-render first (the edited row may have changed), then put focus back
+    requestAnimationFrame(() => {
+      const el = returnFocus.current;
+      (el && el.isConnected ? el : closeRef.current)?.focus();
+    });
+  };
+
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    // Esc backs out of the innermost thing first: form, then delete prompt, then the whole bank.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (form) closeForm();
+      else if (confirmId) setConfirmId(null);
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, form, confirmId]);
+
+  const editing: ManualAccount | undefined =
+    form?.kind === "edit" && manual?.load.status === "ok" ? manual.load.state.accounts.find((a) => a.id === form.id) : undefined;
 
   return (
     <div className="ft-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="ft-bank" role="dialog" aria-modal="true" aria-labelledby="bank-title">
         <header className="ft-bank-head">
           <h2 id="bank-title">Town Bank</h2>
-          <span className="ft-pill">Sample data · read-only</span>
+          <span className="ft-pill">{isManual ? "My accounts · saved in this browser" : "Sample data · read-only"}</span>
           <button ref={closeRef} className="ft-btn" onClick={onClose}>
             Leave bank <kbd>Esc</kbd>
           </button>
@@ -67,7 +116,7 @@ export function BankDashboard({ accounts, summary, transactions, homeTier, onClo
                 </div>
                 <div>
                   <dt>Debts</dt>
-                  <dd className="neg">−{formatCents(summary.debtsCents)}</dd>
+                  <dd className={summary.debtsCents > 0 ? "neg" : ""}>{summary.debtsCents > 0 ? "−" : ""}{formatCents(summary.debtsCents)}</dd>
                   <dd className="bk-note">Loans and credit cards</dd>
                 </div>
               </dl>
@@ -99,60 +148,156 @@ export function BankDashboard({ accounts, summary, transactions, homeTier, onClo
             </div>
           </div>
 
-          <div className="ft-grid">
-            {GROUPS.map((grp) => (
-              <article key={grp.kind} className="ft-card">
-                <h3>
-                  <span aria-hidden>{grp.icon}</span> {grp.title}
-                </h3>
-                <p className={`bk-total ${grp.kind === "debt" ? "neg" : ""}`}>
-                  {grp.kind === "debt" ? "−" : ""}
-                  {formatCents(totals[grp.kind])}
-                </p>
-                <ul>
-                  {accounts.filter((a) => a.kind === grp.kind).map((a) => (
-                    <li key={a.id}>
-                      <span>
-                        {a.name}
-                        <small>
-                          {a.institution}
-                          {a.aprBasisPoints != null && ` · ${(a.aprBasisPoints / 100).toFixed(2)}% APR`}
-                        </small>
-                      </span>
-                      <span className="amt">{formatCents(a.balanceCents)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
+          {isManual && manual?.load.status === "invalid" && (
+            <article className="ft-card bk-notice bk-notice-warn" role="alert">
+              <h3>We could not read your saved accounts</h3>
+              <p>{manual.load.reason} Nothing was changed or deleted, and editing is paused so your data is not overwritten.</p>
+              <p>
+                Starting fresh keeps a copy of the unreadable data in this browser under a backup key, then lets you add accounts again.
+              </p>
+              <div className="bk-actions">
+                <button className="ft-btn" onClick={manual.onResetUnreadable}>Keep a backup and start fresh</button>
+              </div>
+            </article>
+          )}
 
-          <article className="ft-card ft-tx">
-            <h3>Recent transactions</h3>
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Account</th><th className="amt">Amount</th></tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => {
-                  const k = TRANSACTION_KIND[t.kind];
-                  return (
-                    <tr key={t.id}>
-                      <td className="tx-date">{fmtDate(t.date)}</td>
-                      <td>
-                        {t.description}
-                        <small>
-                          <span className={`tx-badge tx-${k.tone}`}>{k.label}</span> {t.category}
-                        </small>
-                      </td>
-                      <td>{names[t.accountId] ?? t.accountId}</td>
-                      <td className={`amt tx-amt-${k.tone}`}>{formatCents(t.amountCents, { signed: true })}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </article>
+          {isManual && manual?.saveFailed && (
+            <article className="ft-card bk-notice bk-notice-warn" role="alert">
+              <p>This browser would not save your change. Your accounts may disappear when you reload. Storage might be blocked, for example in a private window.</p>
+            </article>
+          )}
+
+          {editable && manualAccounts === 0 && !form && (
+            <article className="ft-card bk-notice">
+              <h3>Set up your accounts</h3>
+              <p>
+                Add the balances you want to track: a nickname, an account type and the current balance. You update them by hand.
+                Nothing connects to a bank, and your numbers stay in this browser.
+              </p>
+              <div className="bk-actions">
+                <button className="ft-btn ft-btn-save" onClick={() => openForm({ kind: "add" })}>Add your first account</button>
+              </div>
+            </article>
+          )}
+
+          {editable && form && (
+            <AccountForm
+              key={form.kind === "edit" ? form.id : "add"}
+              initial={editing}
+              onSave={(v) => {
+                if (form.kind === "edit") manual!.onUpdate(form.id, v);
+                else manual!.onAdd(v);
+                closeForm();
+              }}
+              onCancel={closeForm}
+            />
+          )}
+
+          {editable && manualAccounts > 0 && !form && (
+            <div className="bk-toolbar">
+              <button className="ft-btn" onClick={() => openForm({ kind: "add" })}>Add account</button>
+            </div>
+          )}
+
+          {(!isManual || (editable && manualAccounts > 0)) && (
+            <div className="ft-grid">
+              {GROUPS.map((grp) => {
+                const list = accounts.filter((a) => a.kind === grp.kind);
+                return (
+                  <article key={grp.kind} className="ft-card">
+                    <h3>
+                      <span aria-hidden>{grp.icon}</span> {grp.title}
+                    </h3>
+                    <p className={`bk-total ${grp.kind === "debt" && totals.debt > 0 ? "neg" : ""}`}>
+                      {grp.kind === "debt" && totals.debt > 0 ? "−" : ""}
+                      {formatCents(totals[grp.kind])}
+                    </p>
+                    {list.length === 0 ? (
+                      <p className="bk-note bk-empty">None yet.</p>
+                    ) : (
+                      <ul>
+                        {list.map((a) => (
+                          <li key={a.id}>
+                            <span>
+                              {a.name}
+                              <small>
+                                {a.updatedAt
+                                  ? `${grp.kind === "debt" ? "Amount owed · " : ""}Updated ${fmtUpdated(a.updatedAt)}`
+                                  : a.institution}
+                                {a.aprBasisPoints != null && ` · ${(a.aprBasisPoints / 100).toFixed(2)}% APR`}
+                              </small>
+                              {editable && (
+                                <span className="bk-row-actions">
+                                  {confirmId === a.id ? (
+                                    <>
+                                      <span className="bk-confirm">Delete {a.name}?</span>
+                                      <button
+                                        className="bk-link bk-danger"
+                                        onClick={() => {
+                                          manual!.onDelete(a.id);
+                                          setConfirmId(null);
+                                        }}
+                                      >
+                                        Delete
+                                      </button>
+                                      <button className="bk-link" onClick={() => setConfirmId(null)}>Keep</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button className="bk-link" aria-label={`Edit ${a.name}`} onClick={() => openForm({ kind: "edit", id: a.id })}>Edit</button>
+                                      <button className="bk-link" aria-label={`Delete ${a.name}`} onClick={() => setConfirmId(a.id)}>Delete</button>
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </span>
+                            <span className="amt">{formatCents(a.balanceCents)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          {isManual ? (
+            <article className="ft-card bk-notice">
+              <h3>Transactions</h3>
+              <p>
+                Transactions are not available yet. They will appear here once you enter them or connect an account.
+                The activity shown in demo mode is sample data and is never mixed into your accounts.
+              </p>
+            </article>
+          ) : (
+            <article className="ft-card ft-tx">
+              <h3>Recent transactions</h3>
+              <table>
+                <thead>
+                  <tr><th>Date</th><th>Description</th><th>Account</th><th className="amt">Amount</th></tr>
+                </thead>
+                <tbody>
+                  {transactions.map((t) => {
+                    const k = TRANSACTION_KIND[t.kind];
+                    return (
+                      <tr key={t.id}>
+                        <td className="tx-date">{fmtDate(t.date)}</td>
+                        <td>
+                          {t.description}
+                          <small>
+                            <span className={`tx-badge tx-${k.tone}`}>{k.label}</span> {t.category}
+                          </small>
+                        </td>
+                        <td>{names[t.accountId] ?? t.accountId}</td>
+                        <td className={`amt tx-amt-${k.tone}`}>{formatCents(t.amountCents, { signed: true })}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </article>
+          )}
         </div>
       </section>
     </div>

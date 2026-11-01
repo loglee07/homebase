@@ -57,5 +57,13 @@
 - Limitation: home tier currently reverts when net worth falls below $100,000 (a later request); the "stays unlocked" message therefore only differs from net-worth state if one-way behavior is restored.
 - Bank artwork intentionally keeps the original sign art, no text overlay. Building-name labels may come later as a separate interface layer.
 
+## My accounts mode (done)
+- Separate **My accounts** mode next to Demo (top-bar "Data" switch, saved across reloads). Add, edit and delete accounts (nickname, type, USD balance) from the bank dashboard; "Updated <date>" per account (moves only when the balance changes); empty start with a setup prompt.
+- Validation: integer cents, positive amounts only, max two decimals, nickname 1-40 chars and not number-like. Net worth, assets and debts reuse `summarize()`; the home tier uses the existing milestone logic on the active mode's net worth, with a separate saved milestone per mode and no toast when merely switching modes.
+- Transactions in My accounts: an explanatory "not available yet" card; sample transactions never appear.
+- Unreadable saved data: warning, editing paused, explicit "Keep a backup and start fresh" (copies the raw data to an unreadable-backup key first).
+- Verified: 36+ unit tests (parsing, validation, add/edit/delete, loading, mode separation, upgrade and downgrade); in the browser at 1280x800 and 900x600: empty setup, validation errors and focus, add checking and debt (net worth 1,234.56 - 234.50 = 1,000.06), edit prefill, Esc backs out form then bank with focus returned, delete confirm, reload persistence, upgrade to manor from manual balances and downgrade after delete, demo switch leaving manual data untouched, corrupt data and backup. Test data was removed from the preview browser afterwards.
+- Limitations: localStorage is not encrypted and is per browser; no export/import or multi-device sync; one currency (USD); no transaction entry; failed browser writes show a warning but are not retried.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.

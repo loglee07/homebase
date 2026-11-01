@@ -4,35 +4,44 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { TownBridge, type InteractableId } from "@/game/bridge";
 import { summarize } from "@/lib/finance";
+import { createLocalStore } from "@/lib/localStore";
 import { formatCents } from "@/lib/money";
 import {
   HOME_UPGRADE_THRESHOLD_CENTS,
+  MANUAL_MILESTONE_STORAGE_KEY,
   MILESTONE_STORAGE_KEY,
   applyMilestones,
   loadMilestones,
   saveMilestones,
   type HomeTier,
 } from "@/lib/milestones";
+import {
+  MANUAL_BACKUP_KEY,
+  MANUAL_STORAGE_KEY,
+  MODE_STORAGE_KEY,
+  addAccount,
+  deleteAccount,
+  loadManual,
+  parseMode,
+  toAccounts,
+  updateAccount,
+  type Mode,
+  type ValidAccount,
+} from "@/lib/manualAccounts";
 import { sampleAccounts, sampleTransactions, type Scenario } from "@/lib/sampleData";
-import { BankDashboard } from "./BankDashboard";
+import { BankDashboard, type ManualControls } from "./BankDashboard";
 
 const TownGame = dynamic(() => import("./TownGame"), {
   ssr: false,
   loading: () => <div className="ft-loading">Waking up the town…</div>,
 });
 
-const milestoneListeners = new Set<() => void>();
-const subscribeMilestones = (cb: () => void) => {
-  milestoneListeners.add(cb);
-  return () => void milestoneListeners.delete(cb);
-};
-const notifyMilestones = () => milestoneListeners.forEach((cb) => cb());
-const readRaw = () => {
-  try {
-    return window.localStorage.getItem(MILESTONE_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
+// Each key is its own external store. Demo and My accounts never share a save.
+const modeStore = createLocalStore(MODE_STORAGE_KEY);
+const manualStore = createLocalStore(MANUAL_STORAGE_KEY);
+const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
+  demo: createLocalStore(MILESTONE_STORAGE_KEY),
+  manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
 };
 
 const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home" };
@@ -46,13 +55,23 @@ export function FinanceTown() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const appliedTier = useRef<HomeTier | null>(null);
 
-  const accounts = useMemo(() => sampleAccounts(scenario), [scenario]);
+  const mode = parseMode(useSyncExternalStore(modeStore.subscribe, modeStore.getSnapshot, modeStore.getServerSnapshot));
+  const manualRaw = useSyncExternalStore(manualStore.subscribe, manualStore.getSnapshot, manualStore.getServerSnapshot);
+  const manualLoad = useMemo(() => loadManual(manualRaw), [manualRaw]);
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  // Active mode decides the accounts. Demo controls only ever touch the demo scenario.
+  const accounts = useMemo(
+    () => (mode === "demo" ? sampleAccounts(scenario) : manualLoad.status === "ok" ? toAccounts(manualLoad.state) : []),
+    [mode, scenario, manualLoad],
+  );
   const summary = useMemo(() => summarize(accounts), [accounts]);
 
-  // Saved milestones live in localStorage; read through an external-store hook so SSR stays stable.
-  const raw = useSyncExternalStore(subscribeMilestones, readRaw, () => "");
+  // Saved milestones live in localStorage (one save per mode); read through an external-store hook so SSR stays stable.
+  const milestoneStore = milestoneStores[mode];
+  const raw = useSyncExternalStore(milestoneStore.subscribe, milestoneStore.getSnapshot, milestoneStore.getServerSnapshot);
   const stored = useMemo(() => loadMilestones({ getItem: () => raw || null }), [raw]);
-  // Automatic milestone: pure derivation. The tier follows net worth up and down.
+  // Automatic milestone: pure derivation. The tier follows the active mode's net worth up and down.
   const { state: milestones, upgraded, downgraded } = applyMilestones(stored, summary.netWorthCents);
 
   const showToast = useCallback((msg: string) => {
@@ -61,20 +80,62 @@ export function FinanceTown() {
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   }, []);
 
+  const lastMode = useRef(mode);
   useEffect(() => {
+    // Switching modes re-derives the tier from the other data; that is not a milestone event, so stay quiet.
+    const switched = lastMode.current !== mode;
+    lastMode.current = mode;
     if (upgraded || downgraded) {
-      saveMilestones(window.localStorage, milestones);
-      notifyMilestones();
-      // one-shot announcement of an external event (the milestone), not derived state
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      showToast(upgraded ? "Net worth passed $100,000. Your home was upgraded!" : "Net worth fell below $100,000. Your home is a cottage again.");
+      saveMilestones(window.localStorage, milestones, milestoneStore.key);
+      milestoneStore.notify();
+      if (!switched) {
+        // one-shot announcement of an external event (the milestone), not derived state
+        showToast(upgraded ? "Net worth passed $100,000. Your home was upgraded!" : "Net worth fell below $100,000. Your home is a cottage again.");
+      }
     }
     if (appliedTier.current !== milestones.homeTier) {
-      // celebrate only for a live upgrade, not when restoring a saved one on load
-      bridge.setHomeTier(milestones.homeTier, upgraded);
+      // celebrate only for a live upgrade, not when restoring a saved one on load or switching modes
+      bridge.setHomeTier(milestones.homeTier, upgraded && !switched);
       appliedTier.current = milestones.homeTier;
     }
-  }, [upgraded, downgraded, milestones, bridge, showToast]);
+  }, [upgraded, downgraded, milestones, milestoneStore, mode, bridge, showToast]);
+
+  const setMode = useCallback((next: Mode) => void modeStore.write(next), []);
+
+  const manual = useMemo<ManualControls>(() => {
+    const commit = (next: Parameters<typeof manualStore.write>[0]) => setSaveFailed(!manualStore.write(next));
+    const current = () => {
+      const l = loadManual(manualStore.getSnapshot());
+      return l.status === "ok" ? l.state : null;
+    };
+    return {
+      load: manualLoad,
+      saveFailed,
+      onAdd: (v: ValidAccount) => {
+        const s = current();
+        if (s) commit(JSON.stringify(addAccount(s, v)));
+      },
+      onUpdate: (id: string, v: ValidAccount) => {
+        const s = current();
+        if (s) commit(JSON.stringify(updateAccount(s, id, v)));
+      },
+      onDelete: (id: string) => {
+        const s = current();
+        if (s) commit(JSON.stringify(deleteAccount(s, id)));
+      },
+      onResetUnreadable: () => {
+        try {
+          const rawNow = window.localStorage.getItem(MANUAL_STORAGE_KEY);
+          if (rawNow) window.localStorage.setItem(MANUAL_BACKUP_KEY, rawNow);
+          window.localStorage.removeItem(MANUAL_STORAGE_KEY);
+          setSaveFailed(false);
+        } catch {
+          setSaveFailed(true);
+        }
+        manualStore.notify();
+      },
+    };
+  }, [manualLoad, saveFailed]);
 
   useEffect(() => {
     bridge.setPaused(bankOpen);
@@ -97,7 +158,7 @@ export function FinanceTown() {
     <main className="ft-app">
       <header className="ft-bar">
         <h1>Finance Town</h1>
-        <div className="ft-chip" title="Net worth from sample data">
+        <div className="ft-chip" title={mode === "demo" ? "Net worth from sample data" : "Net worth from your accounts"}>
           <span className="ft-label">Net worth</span> <b>{formatCents(summary.netWorthCents)}</b>
         </div>
         <div className="ft-chip">
@@ -106,6 +167,18 @@ export function FinanceTown() {
         <button className="ft-btn ft-btn-primary" onClick={() => setBankOpen(true)} disabled={bankOpen}>
           🏦 Bank
         </button>
+        <fieldset className="ft-demo ft-mode">
+          <legend>Data</legend>
+          <label>
+            <input type="radio" name="mode" checked={mode === "demo"} onChange={() => setMode("demo")} />
+            Demo
+          </label>
+          <label>
+            <input type="radio" name="mode" checked={mode === "manual"} onChange={() => setMode("manual")} />
+            My accounts
+          </label>
+        </fieldset>
+        {mode === "demo" && (
         <fieldset className="ft-demo">
           <legend>Demo control · sample net worth</legend>
           <label>
@@ -117,6 +190,7 @@ export function FinanceTown() {
             Above $100k
           </label>
         </fieldset>
+        )}
       </header>
 
       <div className="ft-stage">
@@ -127,10 +201,10 @@ export function FinanceTown() {
           </button>
         )}
         {toast && <div className="ft-toast" role="status">{toast}</div>}
-        <p className="ft-help">Move: WASD / arrows · Interact: E · Sample data only</p>
+        <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>
 
-      {bankOpen && <BankDashboard accounts={accounts} summary={summary} transactions={sampleTransactions} homeTier={milestones.homeTier} onClose={closeBank} />}
+      {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} onClose={closeBank} />}
     </main>
   );
 }

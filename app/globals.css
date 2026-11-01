@@ -38,6 +38,8 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 :focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
 
 .ft-demo { margin: 0 0 0 auto; border: 2px dashed #ffd98a; border-radius: 6px; padding: 2px 12px 4px; display: flex; gap: 14px; background: rgba(0, 0, 0, 0.18); }
+.ft-mode { margin: 0 0 0 auto; }
+.ft-mode + .ft-demo { margin-left: 0; }
 .ft-demo legend { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #ffd98a; padding: 0 6px; font-weight: 700; }
 .ft-demo label { display: flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
 
@@ -103,6 +105,28 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .tx-amt-income { color: var(--pos); }
 .tx-amt-spending { color: var(--neg); }
 .tx-amt-neutral { color: var(--ink-soft); }
+
+/* manual accounts */
+.bk-notice h3 { margin-bottom: 6px; }
+.bk-notice p { margin: 0 0 10px; font-size: 16px; line-height: 1.5; max-width: 62ch; }
+.bk-notice-warn { background: #fff1e6; border-color: #e7b48f; }
+.bk-toolbar { display: flex; justify-content: flex-end; margin-bottom: -6px; }
+.bk-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
+.ft-btn-save { background: var(--gold); }
+.ft-btn-save:hover:not(:disabled) { background: #f0b73c; }
+.bk-form { display: grid; gap: 12px; }
+.bk-field { display: grid; gap: 4px; }
+.bk-field label { font-weight: 600; font-size: 15px; }
+.bk-field input, .bk-field select { font: inherit; font-size: 16px; padding: 8px 10px; border: 2px solid var(--wood-d); border-radius: 4px; background: #fff; color: var(--ink); max-width: 420px; width: 100%; }
+.bk-field [aria-invalid="true"] { border-color: var(--neg); background: #fff6f2; }
+.bk-hint { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.bk-error { margin: 0; font-size: 14px; font-weight: 600; color: var(--neg); }
+.bk-empty { padding: 8px 0 10px; border-top: 1px solid var(--paper-2); }
+.bk-row-actions { display: flex; gap: 12px; align-items: baseline; margin-top: 2px; }
+.bk-link { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 14px; font-weight: 600; color: #1b5fa8; text-decoration: underline; cursor: pointer; }
+.bk-link:hover { color: #123f70; }
+.bk-danger { color: var(--neg); }
+.bk-confirm { font-size: 14px; color: var(--ink-soft); }
 
 @media (max-width: 760px) {
   .bk-hero, .ft-grid { grid-template-columns: minmax(0, 1fr); }

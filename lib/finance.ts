@@ -11,6 +11,8 @@ export interface Account {
   balanceCents: Cents;
   /** Debts only, in basis points (1999 = 19.99%). */
   aprBasisPoints?: number;
+  /** Manual accounts only: ISO timestamp of the last time the balance was entered. */
+  updatedAt?: string;
 }
 
 /**

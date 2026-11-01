@@ -2,6 +2,8 @@ import type { Cents } from "./money";
 
 export const HOME_UPGRADE_THRESHOLD_CENTS: Cents = 10_000_000; // $100,000.00
 export const MILESTONE_STORAGE_KEY = "finance-town:milestones:v1";
+/** Home tier saved for My accounts mode; kept apart from the demo save so the modes never mix. */
+export const MANUAL_MILESTONE_STORAGE_KEY = "finance-town:milestones:manual:v1";
 
 export type HomeTier = 1 | 2;
 
@@ -45,9 +47,9 @@ export function milestoneStatus(homeTier: HomeTier, netWorthCents: Cents): Miles
   return { unlocked: false, progressPercent, remainingCents: Math.max(0, HOME_UPGRADE_THRESHOLD_CENTS - netWorthCents) };
 }
 
-export function loadMilestones(storage: ReadableStorage | null | undefined): MilestoneState {
+export function loadMilestones(storage: ReadableStorage | null | undefined, key: string = MILESTONE_STORAGE_KEY): MilestoneState {
   try {
-    const raw = storage?.getItem(MILESTONE_STORAGE_KEY);
+    const raw = storage?.getItem(key);
     if (!raw) return INITIAL_MILESTONES;
     const parsed = JSON.parse(raw) as Partial<MilestoneState> | null;
     if (parsed?.version !== 1 || (parsed.homeTier !== 1 && parsed.homeTier !== 2)) return INITIAL_MILESTONES;
@@ -61,9 +63,13 @@ export function loadMilestones(storage: ReadableStorage | null | undefined): Mil
   }
 }
 
-export function saveMilestones(storage: WritableStorage | null | undefined, state: MilestoneState): void {
+export function saveMilestones(
+  storage: WritableStorage | null | undefined,
+  state: MilestoneState,
+  key: string = MILESTONE_STORAGE_KEY,
+): void {
   try {
-    storage?.setItem(MILESTONE_STORAGE_KEY, JSON.stringify(state));
+    storage?.setItem(key, JSON.stringify(state));
   } catch {
     // Storage may be unavailable (private mode / quota); the upgrade still shows this session.
   }
