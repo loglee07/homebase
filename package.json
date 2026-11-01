@@ -17,6 +17,7 @@
     "node:check": "bash scripts/with-node24.sh node -p \"process.version+' '+process.execPath\""
   },
   "dependencies": {
+    "ical.js": "^2.2.1",
     "next": "16.4.3",
     "phaser": "^4.2.1",
     "plaid": "^49.0.0",

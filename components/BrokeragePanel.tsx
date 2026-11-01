@@ -41,7 +41,7 @@ interface Props {
 }
 
 /** The local access-code form. Shared by the brokerage and BluPeak panels (one session unlocks both). */
-export function UnlockForm({ client }: { client: BrokerageClient }) {
+export function UnlockForm({ client, purpose = "load connected balances" }: { client: BrokerageClient; purpose?: string }) {
   const [code, setCode] = useState("");
   const { busy, message } = client;
   return (
@@ -52,7 +52,7 @@ export function UnlockForm({ client }: { client: BrokerageClient }) {
         if (await client.unlock(code)) setCode("");
       }}
     >
-      <p>Enter your local access code to load connected balances. It is checked by this computer&apos;s server and never stored in the page.</p>
+      <p>Enter your local access code to {purpose}. It is checked by this computer&apos;s server and never stored in the page.</p>
       <label className="bk-field">
         <span>Access code</span>
         <input type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} disabled={busy} />

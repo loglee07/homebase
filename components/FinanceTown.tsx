@@ -45,6 +45,8 @@ import { BankDashboard, type ManualControls } from "./BankDashboard";
 import type { BrokerageControls } from "./BrokeragePanel";
 import { useBank } from "./useBank";
 import { useBrokerage } from "./useBrokerage";
+import { SchoolDashboard } from "./SchoolDashboard";
+import { useSchool } from "./useSchool";
 
 const TownGame = dynamic(() => import("./TownGame"), {
   ssr: false,
@@ -63,12 +65,13 @@ const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
   manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
 };
 
-const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home" };
+const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home", school: "enter the School" };
 
 export function FinanceTown() {
   const bridge = useMemo(() => new TownBridge(), []);
   const [scenario, setScenario] = useState<Scenario>("below");
   const [bankOpen, setBankOpen] = useState(false);
+  const [schoolOpen, setSchoolOpen] = useState(false);
   const [prompt, setPrompt] = useState<InteractableId | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -81,9 +84,11 @@ export function FinanceTown() {
 
   const prefsRaw = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot, prefsStore.getServerSnapshot);
   const prefs = useMemo(() => parsePrefs(prefsRaw), [prefsRaw]);
-  const brokerageClient = useBrokerage(mode === "manual");
+  // The local access-code session also unlocks the school calendars, in either mode.
+  const brokerageClient = useBrokerage(mode === "manual" || schoolOpen);
   const brokerageState = brokerageClient.state;
   // BluPeak (Plaid) rides on the same local session: locking drops its balances from the page too.
+  const schoolClient = useSchool(schoolOpen && brokerageClient.access === "unlocked");
   const bankClient = useBank(mode === "manual" && brokerageClient.access === "unlocked");
   const bankState = bankClient.state;
 
@@ -233,8 +238,8 @@ export function FinanceTown() {
   }, [manualLoad, saveFailed]);
 
   useEffect(() => {
-    bridge.setPaused(bankOpen);
-  }, [bankOpen, bridge]);
+    bridge.setPaused(bankOpen || schoolOpen);
+  }, [bankOpen, schoolOpen, bridge]);
 
   const homeTier = milestones.homeTier;
   useEffect(() => {
@@ -242,12 +247,14 @@ export function FinanceTown() {
       onPrompt: setPrompt,
       onInteract: (id) => {
         if (id === "bank") setBankOpen(true);
+        else if (id === "school") setSchoolOpen(true);
         else showToast(`Your ${homeTier === 2 ? "manor" : "cottage"}. Reach ${formatCents(HOME_UPGRADE_THRESHOLD_CENTS)} net worth to upgrade it.`);
       },
     });
   }, [bridge, homeTier, showToast]);
 
   const closeBank = useCallback(() => setBankOpen(false), []);
+  const closeSchool = useCallback(() => setSchoolOpen(false), []);
 
   return (
     <main className="ft-app">
@@ -259,8 +266,11 @@ export function FinanceTown() {
         <div className="ft-chip">
           <span className="ft-label">Home</span> <b>{milestones.homeTier === 2 ? "Manor" : "Cottage"}</b>
         </div>
-        <button className="ft-btn ft-btn-primary" onClick={() => setBankOpen(true)} disabled={bankOpen}>
+        <button className="ft-btn ft-btn-primary" onClick={() => setBankOpen(true)} disabled={bankOpen || schoolOpen}>
           🏦 Bank
+        </button>
+        <button className="ft-btn ft-btn-primary" onClick={() => setSchoolOpen(true)} disabled={bankOpen || schoolOpen}>
+          🎓 School
         </button>
         <fieldset className="ft-demo ft-mode">
           <legend>Data</legend>
@@ -290,7 +300,7 @@ export function FinanceTown() {
 
       <div className="ft-stage">
         <TownGame bridge={bridge} />
-        {prompt && !bankOpen && (
+        {prompt && !bankOpen && !schoolOpen && (
           <button className="ft-prompt" onClick={() => bridge.onInteract(prompt)}>
             <kbd>E</kbd> {LABELS[prompt]}
           </button>
@@ -300,6 +310,7 @@ export function FinanceTown() {
       </div>
 
       {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} history={mode === "manual" ? { load: history, unlocked: brokerageClient.access === "unlocked" } : undefined} onClose={closeBank} />}
+      {schoolOpen && <SchoolDashboard access={brokerageClient} school={schoolClient} onClose={closeSchool} />}
     </main>
   );
 }

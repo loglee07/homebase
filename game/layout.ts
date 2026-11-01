@@ -14,6 +14,7 @@ const PATHS: [number, number, number, number][] = [
   [3, 10, 27, 11], // main street
   [6, 7, 7, 9], // home walk (starts under the building so it meets the doorstep)
   [22, 7, 23, 9], // bank walk (starts under the building so it meets the door)
+  [14, 7, 15, 8], // school walk (meets the plaza below it)
   [12, 9, 17, 12], // plaza
   [14, 13, 15, 16], // south trail
 ];
@@ -41,16 +42,19 @@ export function waterBlocks(): Rect[] {
 export const BUILDING_BASE_Y = 128;
 export const HOME_CENTER_X = 112;
 export const BANK_CENTER_X = 368;
+export const SCHOOL_CENTER_X = 240;
 
 export const HOME_FOOTPRINT: Record<1 | 2, Rect> = {
   1: { x: 80, y: 72, w: 64, h: 56 },
   2: { x: 64, y: 56, w: 96, h: 72 },
 };
 export const BANK_FOOTPRINT: Rect = { x: 320, y: 56, w: 96, h: 72 };
+export const SCHOOL_FOOTPRINT: Rect = { x: 192, y: 56, w: 96, h: 72 };
 
 export const INTERACT_ZONES = {
   home: { x: 96, y: 128, w: 32, h: 22 },
   bank: { x: 352, y: 128, w: 32, h: 22 },
+  school: { x: 224, y: 128, w: 32, h: 22 },
 } as const;
 
 export const FOUNTAIN = { x: 240, y: 192 }; // sprite bottom-center
@@ -73,8 +77,8 @@ function buildTrees(): TreeSpec[] {
   const hand: TreeSpec[] = [
     { x: 42, y: 112, kind: "oak" }, { x: 56, y: 78, kind: "oak2" }, { x: 30, y: 146, kind: "oak2" },
     { x: 440, y: 112, kind: "oak" }, { x: 454, y: 80, kind: "autumn" }, { x: 436, y: 148, kind: "oak2" },
-    { x: 176, y: 80, kind: "oak" }, { x: 200, y: 108, kind: "blossom" }, { x: 262, y: 100, kind: "oak2" },
-    { x: 296, y: 78, kind: "oak" }, { x: 222, y: 72, kind: "blossom" },
+    { x: 176, y: 80, kind: "oak" }, { x: 176, y: 112, kind: "blossom" }, { x: 304, y: 100, kind: "oak2" },
+    { x: 306, y: 70, kind: "oak" },
     { x: 344, y: 250, kind: "blossom" }, { x: 376, y: 250, kind: "blossom" }, { x: 408, y: 250, kind: "autumn" },
     { x: 360, y: 284, kind: "autumn" }, { x: 392, y: 284, kind: "blossom" }, { x: 428, y: 282, kind: "blossom" },
     { x: 192, y: 262, kind: "oak" }, { x: 290, y: 268, kind: "oak2" },

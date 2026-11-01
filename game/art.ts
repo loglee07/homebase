@@ -298,6 +298,53 @@ export function drawBuildings(scene: Phaser.Scene) {
     g.r(12, 74, 72, 2, "#c9c0aa"); g.r(8, 76, 80, 2, "#b3aa94");
   }, OUT);
 
+  // School 96x78: temporary code-drawn art (blue-roofed brick schoolhouse, bell tower, book sign). No text.
+  makeTexture(scene, "school", 96, 78, (g) => {
+    const BRICK = "#b5553a", BRICK_D = "#8f3f2a", ROOF = "#3b5a8c", ROOF_L = "#4a6ea6", ROOF_D = "#2a416a", TRIM = "#f1e3c0", STONE = "#8d8472";
+    // bell tower
+    g.p(48, 0, "#e0a526"); g.r(47, 1, 3, 2, "#e0a526");
+    for (let i = 0; i < 7; i++) g.r(48 - (2 + i * 2), 3 + i, (2 + i * 2) * 2 + 1, 1, i % 3 === 0 ? ROOF_L : ROOF);
+    g.r(36, 10, 25, 1, ROOF_D); g.r(41, 11, 15, 12, TRIM); g.r(43, 12, 11, 10, "#3a2a1f");
+    g.disc(48, 16, 3, "#e0a526"); g.r(46, 19, 5, 2, "#c99a1e"); g.r(41, 11, 2, 12, WOOD); g.r(54, 11, 2, 12, WOOD);
+    // main hip roof
+    for (let y = 22; y < 40; y++) {
+      const inset = Math.max(0, Math.floor((28 - y) * 0.5));
+      g.r(inset, y, 96 - inset * 2, 1, y % 4 === 0 ? ROOF_D : y % 4 === 2 ? ROOF_L : ROOF);
+      for (let x = (y % 8 < 4 ? 4 : 0) + inset; x < 96 - inset; x += 8) g.p(x, y, ROOF_D);
+    }
+    g.r(0, 40, 96, 2, WOOD); g.r(0, 42, 96, 1, WOOD_D);
+    // entrance gable (timber and plaster)
+    for (let y = 0; y < 16; y++) {
+      const half = 3 + y;
+      g.r(48 - half, 26 + y, half * 2, 1, y < 2 ? WOOD : TRIM);
+      g.p(48 - half, 26 + y, WOOD); g.p(47 + half, 26 + y, WOOD);
+    }
+    g.r(30, 41, 36, 2, WOOD);
+    for (let i = 0; i < 12; i++) { g.p(36 + i, 26 + 4 - Math.floor(i / 3), ROOF_D); }
+    g.r(46, 30, 4, 11, WOOD); g.r(36, 37, 24, 1, WOOD);
+    // book sign
+    g.r(38, 33, 20, 8, "#7a5a1e"); g.r(39, 34, 18, 6, "#5c3d22");
+    g.r(40, 35, 7, 4, "#fffaf0"); g.r(49, 35, 7, 4, "#fffaf0"); g.r(47, 34, 2, 6, "#5c3d22");
+    for (const y of [36, 38]) { g.r(41, y, 5, 1, "#c4bba5"); g.r(50, y, 5, 1, "#c4bba5"); }
+    // brick walls
+    g.r(4, 43, 88, 28, BRICK); brickLines(g, 4, 43, 88, 28, BRICK_D, 5);
+    g.r(4, 65, 88, 6, STONE); for (let x = 4; x < 92; x += 10) g.r(x, 66, 1, 5, "#6e6656");
+    // windows (cream frames, blue glass)
+    for (const wx of [10, 23, 64, 77]) {
+      g.r(wx - 1, 48, 12, 16, TRIM); g.r(wx + 1, 50, 8, 12, "#2a5fa8"); g.r(wx + 1, 50, 8, 12, GLASS);
+      g.r(wx + 4, 50, 2, 12, "#5c3d22"); g.r(wx + 1, 55, 8, 1, "#5c3d22"); g.p(wx + 2, 51, "#ffffff"); g.p(wx + 7, 57, "#ffffff");
+    }
+    // entrance pillars, double door, lanterns
+    g.r(31, 43, 4, 23, TRIM); g.r(61, 43, 4, 23, TRIM); g.r(31, 43, 4, 2, STONE); g.r(61, 43, 4, 2, STONE);
+    g.r(37, 46, 22, 20, "#3a2a1f"); g.r(38, 47, 20, 19, WOOD); g.r(47, 47, 2, 19, "#3a2a1f");
+    g.r(40, 49, 6, 7, WOOD_D); g.r(50, 49, 6, 7, WOOD_D); g.r(40, 58, 6, 7, WOOD_D); g.r(50, 58, 6, 7, WOOD_D);
+    g.p(45, 58, "#f6d36a"); g.p(50, 58, "#f6d36a"); g.r(37, 45, 22, 2, TRIM);
+    for (const lx of [28, 66]) { g.r(lx, 50, 3, 5, "#3a2a1f"); g.r(lx, 51, 3, 3, "#f6c24a"); g.p(lx + 1, 52, "#fff1b0"); }
+    // steps
+    g.r(33, 66, 30, 2, "#c9c0aa"); g.r(31, 68, 34, 2, "#b3aa94"); g.r(29, 70, 38, 2, "#a79e88");
+    g.r(4, 71, 88, 2, "#8d8472");
+  }, OUT);
+
   // player frames
   drawPlayer(scene);
 }

@@ -7,12 +7,12 @@ import {
   queueLicensed, queueProbe,
 } from "./licensed";
 import {
-  BANK_CENTER_X, BANK_FOOTPRINT, BENCHES, BUILDING_BASE_Y, BUSHES, FENCES, FOUNTAIN, FOUNTAIN_BLOCK, HOME_CENTER_X,
+  BANK_CENTER_X, BANK_FOOTPRINT, SCHOOL_CENTER_X, SCHOOL_FOOTPRINT, BENCHES, BUILDING_BASE_Y, BUSHES, FENCES, FOUNTAIN, FOUNTAIN_BLOCK, HOME_CENTER_X,
   HOME_FOOTPRINT, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, pondBlocks, waterBlocks, type Rect,
 } from "./layout";
 
 /** texture key -> file in public/sprites */
-const CUSTOM_SPRITES = [{ key: "home_1", file: "home_1" }, { key: "home_2", file: "home_2" }, { key: "bank", file: "bank" }];
+const CUSTOM_SPRITES = [{ key: "home_1", file: "home_1" }, { key: "home_2", file: "home_2" }, { key: "bank", file: "bank" }, { key: "school", file: "school" }];
 const SPEED = 62;
 const WALK_FRAMES = [1, 0, 2, 0];
 
@@ -68,7 +68,7 @@ export class TownScene extends Phaser.Scene {
     }
     const solids: Rect[] = [];
     const blockedForFlowers = (x: number, y: number) =>
-      (x > 56 && x < 168 && y > 40 && y < 150) || (x > 312 && x < 424 && y > 40 && y < 150) || (x > 216 && x < 264 && y > 150 && y < 200);
+      (x > 56 && x < 168 && y > 40 && y < 150) || (x > 312 && x < 424 && y > 40 && y < 150) || (x > 184 && x < 296 && y > 40 && y < 150) || (x > 216 && x < 264 && y > 150 && y < 200);
     (this.licensed ? drawLicensedGround : drawGround)(this, blockedForFlowers);
     this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(0);
 
@@ -110,6 +110,8 @@ export class TownScene extends Phaser.Scene {
 
     this.add.image(BANK_CENTER_X, BUILDING_BASE_Y + 1, "bank").setOrigin(0.5, 1).setDepth(BUILDING_BASE_Y);
     solids.push(BANK_FOOTPRINT);
+    this.add.image(SCHOOL_CENTER_X, BUILDING_BASE_Y + 1, "school").setOrigin(0.5, 1).setDepth(BUILDING_BASE_Y);
+    solids.push(SCHOOL_FOOTPRINT);
     solids.push(...(this.licensed ? waterBlocks() : pondBlocks()));
     for (const s of solids) this.addBlock(this.blockers, s);
 
