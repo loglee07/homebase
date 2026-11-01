@@ -1,0 +1,32 @@
+{
+  "name": "finance-town",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev:stop": "bash scripts/dev-stop.sh 3000"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "phaser": "^4.2.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
