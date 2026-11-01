@@ -12,6 +12,8 @@ import type { Account } from "@/lib/finance";
 import { createLocalStore } from "@/lib/localStore";
 import { formatCents } from "@/lib/money";
 import type { BankClient } from "./useBank";
+import type { AssetKind } from "@/lib/brokerage";
+import { CategoryPicker } from "./CategoryPicker";
 import type { BrokerageClient } from "./useBrokerage";
 
 export interface BrokerageControls {
@@ -22,6 +24,8 @@ export interface BrokerageControls {
   pending: boolean;
   onToggleInclude: (brokerageId: string) => void;
   onToggleManualExcluded: (manualId: string) => void;
+  /** Display category for a connected account. null goes back to the provider default. */
+  onSetCategory: (accountId: string, kind: AssetKind | null) => void;
 }
 
 // Per-viewer convenience only: whether the panel is minimized. Holds no financial data.
@@ -62,7 +66,7 @@ export function UnlockForm({ client }: { client: BrokerageClient }) {
 }
 
 export function BrokeragePanel({ controls, manual }: Props) {
-  const { client, prefs, onToggleInclude, onToggleManualExcluded } = controls;
+  const { client, prefs, onToggleInclude, onToggleManualExcluded, onSetCategory } = controls;
   const { access, provider, state, busy, message } = client;
   const [now, setNow] = useState(() => Date.now());
 
@@ -185,6 +189,7 @@ export function BrokeragePanel({ controls, manual }: Props) {
                       </span>
                     </label>
                     <span className="amt">{usable && a.valueCents !== null ? formatCents(a.valueCents) : "Unavailable"}</span>
+                    {usable && <CategoryPicker defaultKind="investment" override={prefs.categories[a.id]} label={`${a.institution} ${a.name}`} onChange={(k) => onSetCategory(a.id, k)} />}
                     {hits.length > 0 && (
                       <div className="bk-dupe" role="note">
                         <span>

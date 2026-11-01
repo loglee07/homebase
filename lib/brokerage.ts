@@ -139,14 +139,41 @@ export function normalizeBrokerage(connections: RawConnection[], accounts: RawAc
 
 // ---- preferences: which brokerage accounts count, which manual accounts are left out ----
 
+/** Asset categories a connected account may be shown under. Debts are never re-categorized. */
+export const ASSET_KINDS = ["checking", "savings", "investment"] as const;
+export type AssetKind = (typeof ASSET_KINDS)[number];
+export const ASSET_KIND_LABEL: Record<AssetKind, string> = { checking: "Checking", savings: "Savings", investment: "Investments" };
+const isAssetKind = (v: unknown): v is AssetKind => typeof v === "string" && (ASSET_KINDS as readonly string[]).includes(v);
+
 export interface BrokeragePrefs {
   version: 1;
   /** Brokerage account ids the user opted in to count. Nothing is counted by default. */
   included: string[];
   /** Manual account ids left out of net worth (records are kept). */
   excludedManual: string[];
+  /**
+   * Display-category overrides for connected accounts, by the same stable id as `included`
+   * (a SnapTrade account id, or `plaid:<environment>:<id>`). Display only: balances, inclusion and net worth never change.
+   */
+  categories: Record<string, AssetKind>;
 }
-export const EMPTY_PREFS: BrokeragePrefs = { version: 1, included: [], excludedManual: [] };
+export const EMPTY_PREFS: BrokeragePrefs = { version: 1, included: [], excludedManual: [], categories: {} };
+
+const categoryMap = (v: unknown): Record<string, AssetKind> => {
+  const out: Record<string, AssetKind> = {};
+  if (!v || typeof v !== "object" || Array.isArray(v)) return out;
+  for (const [id, kind] of Object.entries(v as Record<string, unknown>).slice(0, 500)) {
+    if (id.length > 0 && id.length <= 80 && isAssetKind(kind)) out[id] = kind;
+  }
+  return out;
+};
+
+/** Sets, or with null clears, one account's display category. Returns new prefs. */
+export function setCategory(prefs: BrokeragePrefs, id: string, kind: AssetKind | null): BrokeragePrefs {
+  const { [id]: _removed, ...rest } = prefs.categories;
+  void _removed;
+  return { ...prefs, categories: kind === null ? rest : { ...rest, [id]: kind } };
+}
 
 const idList = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 80))].slice(0, 500) : [];
@@ -157,7 +184,7 @@ export function parsePrefs(raw: string): BrokeragePrefs {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== "object") return EMPTY_PREFS;
     const d = data as Record<string, unknown>;
-    return { version: 1, included: idList(d.included), excludedManual: idList(d.excludedManual) };
+    return { version: 1, included: idList(d.included), excludedManual: idList(d.excludedManual), categories: categoryMap(d.categories) };
   } catch {
     return EMPTY_PREFS;
   }
@@ -177,7 +204,7 @@ export function brokerageToAccounts(state: BrokerageState | null, prefs: Brokera
     .map((a) => ({
       id: `snaptrade:${a.id}`,
       name: a.name,
-      kind: "investment" as const,
+      kind: (prefs.categories[a.id] ?? "investment") as AssetKind,
       institution: a.institution,
       balanceCents: a.valueCents as Cents,
       source: "snaptrade" as const,

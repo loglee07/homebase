@@ -151,6 +151,9 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .bk-check { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 280px; cursor: pointer; }
 .bk-check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .bk-check small { display: block; font-size: 14px; font-weight: 400; color: var(--ink-soft); }
+.bk-cat { flex-basis: 100%; display: flex; gap: 12px; align-items: center; font-size: 14px; padding-left: 30px; }
+.bk-cat label { display: flex; gap: 8px; align-items: center; }
+.bk-cat select { font: inherit; padding: 4px 6px; border: 2px solid var(--ink-soft, #7a5c3a); border-radius: 4px; background: #fffaf0; min-height: 32px; }
 .bk-dupe { flex-basis: 100%; background: #fff1e6; border: 2px solid #e7b48f; border-radius: 4px; padding: 6px 10px; font-size: 14px; display: grid; gap: 4px; justify-items: start; }
 .amt.excl { text-decoration: line-through; opacity: 0.6; }
 .bk-fold { margin: 0; }

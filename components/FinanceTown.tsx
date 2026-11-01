@@ -11,6 +11,7 @@ import {
   counted,
   markManual,
   parsePrefs,
+  setCategory,
   toggleId,
 } from "@/lib/brokerage";
 import { createLocalStore } from "@/lib/localStore";
@@ -113,6 +114,7 @@ export function FinanceTown() {
       prefs,
       pending: brokeragePending,
       onToggleInclude: (id) => void prefsStore.write(JSON.stringify({ ...prefs, included: toggleId(prefs.included, id) })),
+      onSetCategory: (id, kind) => void prefsStore.write(JSON.stringify(setCategory(prefs, id, kind))),
       onToggleManualExcluded: (id) => void prefsStore.write(JSON.stringify({ ...prefs, excludedManual: toggleId(prefs.excludedManual, id) })),
     }),
     [brokerageClient, bankClient, prefs, brokeragePending],

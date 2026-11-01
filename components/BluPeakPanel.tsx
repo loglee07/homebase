@@ -7,6 +7,7 @@ import { createLocalStore } from "@/lib/localStore";
 import { formatCents } from "@/lib/money";
 import { BANK_ERROR_TEXT, BANK_STATUS_TEXT, bankPrefId, countsTowardNetWorth, type BankAccount } from "@/lib/plaid";
 import type { Account } from "@/lib/finance";
+import { CategoryPicker } from "./CategoryPicker";
 import { UnlockForm, fmtDateTime, type BrokerageControls } from "./BrokeragePanel";
 import type { LinkLaunch } from "./useBank";
 
@@ -49,7 +50,7 @@ interface Props {
 }
 
 export function BluPeakPanel({ controls, manual }: Props) {
-  const { client, bank, prefs, onToggleInclude, onToggleManualExcluded } = controls;
+  const { client, bank, prefs, onToggleInclude, onToggleManualExcluded, onSetCategory } = controls;
   const { info, state, busy, message, launch } = bank;
   const collapsed = useSyncExternalStore(collapsedStore.subscribe, collapsedStore.getSnapshot, collapsedStore.getServerSnapshot) === "1";
   const [now, setNow] = useState(() => Date.now());
@@ -175,6 +176,7 @@ export function BluPeakPanel({ controls, manual }: Props) {
                     </span>
                   </label>
                   <span className="amt">{a.status === "ok" && a.currentCents !== null ? formatCents(a.currentCents) : "Unavailable"}</span>
+                  {usable && a.subtype !== null && <CategoryPicker defaultKind={a.subtype} override={prefs.categories[pid]} label={`${a.institution} ${a.name}`} onChange={(k) => onSetCategory(pid, k)} />}
                   {hits.length > 0 && (
                     <div className="bk-dupe" role="note">
                       <span>Your manual {hits.length === 1 ? "account" : "accounts"} {hits.map((h) => `“${nameOf(h)}”`).join(", ")} may be the same money, so net worth could count it twice.</span>

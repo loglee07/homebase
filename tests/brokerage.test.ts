@@ -109,16 +109,16 @@ describe("net worth merge", () => {
     expect(brokerageToAccounts(st, parsePrefs(""))).toEqual([]);
   });
   it("counts only included, readable USD accounts", () => {
-    const prefs = { version: 1 as const, included: ["b1", "b2", "b3", "missing"], excludedManual: [] };
+    const prefs = { version: 1 as const, included: ["b1", "b2", "b3", "missing"], excludedManual: [], categories: {} };
     const got = brokerageToAccounts(st, prefs);
     expect(got.map((a) => a.id)).toEqual(["snaptrade:b1"]);
     expect(got[0]).toMatchObject({ kind: "investment", balanceCents: 1234567, source: "snaptrade", fetchedAt: FETCHED, asOf: "2026-10-31T21:00:00.000Z", stale: false });
   });
   it("double counts a duplicate until the manual copy is excluded, then does not, and never deletes it", () => {
-    const included = { version: 1 as const, included: ["b1"], excludedManual: [] as string[] };
+    const included = { version: 1 as const, included: ["b1"], excludedManual: [] as string[], categories: {} };
     const both = [...markManual(manual, included), ...brokerageToAccounts(st, included)];
     expect(summarize(counted(both)).netWorthCents).toBe(100000 + 1234567 + 50000 + 1234567);
-    const fixed = { ...included, excludedManual: ["m2"] };
+    const fixed = { ...included, excludedManual: ["m2"], categories: {} };
     const merged = [...markManual(manual, fixed), ...brokerageToAccounts(st, fixed)];
     expect(summarize(counted(merged)).netWorthCents).toBe(100000 + 50000 + 1234567);
     expect(merged.filter((a) => a.source === "manual")).toHaveLength(3); // the excluded record is still listed
@@ -131,19 +131,19 @@ describe("net worth merge", () => {
   });
   it("keeps stale values counted but marked", () => {
     const stale = state([acct("b1", "r", 10)], true);
-    const got = brokerageToAccounts(stale, { version: 1, included: ["b1"], excludedManual: [] });
+    const got = brokerageToAccounts(stale, { version: 1, included: ["b1"], excludedManual: [], categories: {} });
     expect(got[0]).toMatchObject({ balanceCents: 1000, stale: true });
   });
   it("returns nothing when there is no snapshot (unavailable is not zero)", () => {
-    expect(brokerageToAccounts(null, { version: 1, included: ["b1"], excludedManual: [] })).toEqual([]);
-    expect(brokerageToAccounts({ ...st, snapshot: null }, { version: 1, included: ["b1"], excludedManual: [] })).toEqual([]);
+    expect(brokerageToAccounts(null, { version: 1, included: ["b1"], excludedManual: [], categories: {} })).toEqual([]);
+    expect(brokerageToAccounts({ ...st, snapshot: null }, { version: 1, included: ["b1"], excludedManual: [], categories: {} })).toEqual([]);
   });
 });
 
 describe("prefs", () => {
   it("parses leniently and toggles", () => {
-    expect(parsePrefs("not json")).toEqual({ version: 1, included: [], excludedManual: [] });
-    expect(parsePrefs(JSON.stringify({ included: ["a", 3, "a", ""], excludedManual: "x" }))).toEqual({ version: 1, included: ["a"], excludedManual: [] });
+    expect(parsePrefs("not json")).toEqual({ version: 1, included: [], excludedManual: [], categories: {} });
+    expect(parsePrefs(JSON.stringify({ included: ["a", 3, "a", ""], excludedManual: "x" }))).toEqual({ version: 1, included: ["a"], excludedManual: [], categories: {} });
     expect(toggleId(["a"], "b")).toEqual(["a", "b"]);
     expect(toggleId(["a", "b"], "a")).toEqual(["b"]);
   });

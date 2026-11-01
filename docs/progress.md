@@ -86,5 +86,10 @@
 - Live result (2026-11-01): production BluPeak link, exchange, encrypted save and balance Refresh worked. The first Refresh timed out at the 20 second limit and the second succeeded (~7s), so the balance call now has a 60 second limit and refresh failures log sanitized Plaid identifiers. Details and what is still unverified: `docs/plaid.md`.
 - Limitations: one Item (BluPeak); balances only (Transactions is requested at Link but not read); desktop popup OAuth only, no redirect URI; snapshot lost on server restart (the encrypted token is not); checking and savings only, USD only.
 
+## Category override for connected accounts
+- Choose Checking, Savings or Investments per connected asset account ("Show under" in the SnapTrade and BluPeak panels); "Use default" clears it. Stored in the existing account preferences (`categories`, key `finance-town:brokerage-prefs:v1`) by the same stable id as inclusion: the SnapTrade account id or `plaid:<environment>:<id>`, so Plaid environments never share a choice. Old saved preferences without the field load as no overrides.
+- Display only: balance, inclusion, total net worth and home tier are unchanged; only the category subtotals move. The provider's own account type is never altered and nothing is written to a provider. Overdrawn Plaid accounts stay debts, and Sandbox accounts still never count.
+- Checked with synthetic fixtures: moving a stand-in for Cash Management to Savings moved its balance between subtotals with net worth unchanged, the choice survived Refresh and a page reload, and Use default restored it. Tests in `tests/categories.test.ts`.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.

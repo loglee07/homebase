@@ -131,7 +131,7 @@ export function bankToAccounts(state: BankState | null, prefs: BrokeragePrefs): 
     out.push({
       id: bankPrefId(snapshot.environment, a.id),
       name: over ? `${a.name} (overdrawn)` : a.name,
-      kind: over ? "debt" : a.subtype,
+      kind: over ? "debt" : (prefs.categories[bankPrefId(snapshot.environment, a.id)] ?? a.subtype), // an overdrawn account stays a debt
       institution: a.institution,
       balanceCents: Math.abs(a.currentCents),
       source: "plaid",

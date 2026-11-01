@@ -24,7 +24,7 @@ const stateOf = (raws: RawPlaidAccount[], stale = false, env: PlaidEnvironment =
   lastAttemptAt: FETCHED,
   cooldownUntil: FETCHED,
 });
-const inc = (...ids: string[]): BrokeragePrefs => ({ version: 1, included: ids.map((id) => bankPrefId("production", id)), excludedManual: [] });
+const inc = (...ids: string[]): BrokeragePrefs => ({ version: 1, included: ids.map((id) => bankPrefId("production", id)), excludedManual: [], categories: {} });
 
 describe("normalizeBank", () => {
   it("keeps current and available apart, in integer cents", () => {
@@ -64,7 +64,7 @@ describe("net worth", () => {
   const st = stateOf([acct("c", 1234.56, 1100), acct("s", 5000, 4000, { subtype: "savings" }), acct("o", -42.1, -42.1), acct("x", null, null)]);
 
   it("counts nothing until included, and only the current balance (never available)", () => {
-    expect(bankToAccounts(st, { version: 1, included: [], excludedManual: [] })).toEqual([]);
+    expect(bankToAccounts(st, { version: 1, included: [], excludedManual: [], categories: {} })).toEqual([]);
     const got = bankToAccounts(st, inc("c", "s"));
     expect(got.map((a) => [a.kind, a.balanceCents])).toEqual([["checking", 123456], ["savings", 500000]]);
     expect(got[0]).toMatchObject({ id: "plaid:production:c", source: "plaid", institution: "BluPeak", stale: false, fetchedAt: FETCHED });
@@ -82,7 +82,7 @@ describe("net worth", () => {
     const prefs = inc("c");
     const both = [...markManual(manual, prefs), ...bankToAccounts(st, prefs)];
     expect(summarize(counted(both)).netWorthCents).toBe(100000 + 123456 + 123456);
-    const fixed = { ...prefs, excludedManual: ["m2"] };
+    const fixed = { ...prefs, excludedManual: ["m2"], categories: {} };
     const merged = [...markManual(manual, fixed), ...bankToAccounts(st, fixed)];
     expect(summarize(counted(merged)).netWorthCents).toBe(100000 + 123456);
     expect(merged.filter((a) => a.source === "manual")).toHaveLength(2);
@@ -97,7 +97,7 @@ describe("net worth", () => {
   });
   it("sandbox data never counts, even when its ids are included, and never touches the real total", () => {
     const sb = stateOf([acct("c", 99999, 99999)], false, "sandbox");
-    const sandboxIds: BrokeragePrefs = { version: 1, included: [bankPrefId("sandbox", "c"), bankPrefId("production", "c")], excludedManual: [] };
+    const sandboxIds: BrokeragePrefs = { version: 1, included: [bankPrefId("sandbox", "c"), bankPrefId("production", "c")], excludedManual: [], categories: {} };
     expect(bankToAccounts(sb, sandboxIds)).toEqual([]);
     const real = [...markManual(manual, sandboxIds), ...bankToAccounts(sb, sandboxIds)];
     expect(summarize(counted(real)).netWorthCents).toBe(100000 + 123456); // manual only
