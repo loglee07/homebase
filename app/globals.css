@@ -154,6 +154,19 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .bk-cat { flex-basis: 100%; display: flex; gap: 12px; align-items: center; font-size: 14px; padding-left: 30px; }
 .bk-cat label { display: flex; gap: 8px; align-items: center; }
 .bk-cat select { font: inherit; padding: 4px 6px; border: 2px solid var(--ink-soft, #7a5c3a); border-radius: 4px; background: #fffaf0; min-height: 32px; }
+.bk-history { padding-bottom: 12px; }
+.bk-chart { margin: 10px 0 6px; }
+.bk-chart svg { display: block; width: 100%; height: auto; background: #fffdf5; border: 2px solid var(--paper-2); border-radius: 4px; }
+.bk-chart-axis { stroke: #d3bf93; stroke-width: 2; }
+.bk-chart-area { fill: var(--leaf); opacity: 0.14; }
+.bk-chart-line { stroke: var(--leaf-d); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.bk-chart-dot { fill: var(--gold); stroke: var(--wood-d); stroke-width: 1.5; }
+.bk-chart-scale { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--ink-soft); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bk-hist-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.bk-hist-table caption { text-align: left; padding: 4px 0 6px; }
+.bk-hist-table th { text-align: left; font-weight: 600; color: var(--ink-soft); padding: 6px 0; border-bottom: 2px solid var(--paper-2); }
+.bk-hist-table td { padding: 6px 0; border-top: 1px solid var(--paper-2); }
+.bk-hist-table .amt { text-align: right; }
 .bk-dupe { flex-basis: 100%; background: #fff1e6; border: 2px solid #e7b48f; border-radius: 4px; padding: 6px 10px; font-size: 14px; display: grid; gap: 4px; justify-items: start; }
 .amt.excl { text-decoration: line-through; opacity: 0.6; }
 .bk-fold { margin: 0; }

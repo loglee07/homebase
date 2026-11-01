@@ -7,6 +7,7 @@ import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/
 import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manualAccounts";
 import { AccountForm } from "./AccountForm";
 import { BackupPanel, type BackupStatus } from "./BackupPanel";
+import { NetWorthHistory, type HistoryControls } from "./NetWorthHistory";
 import { BluPeakPanel } from "./BluPeakPanel";
 import { BrokeragePanel, fmtDateTime, type BrokerageControls } from "./BrokeragePanel";
 import type { BackupPreview } from "@/lib/manualBackup";
@@ -34,6 +35,8 @@ interface Props {
   manual?: ManualControls;
   /** My accounts only: read-only brokerage balances and the include/exclude choices. */
   brokerage?: BrokerageControls;
+  /** My accounts only: saved net worth snapshots. */
+  history?: HistoryControls;
   onClose: () => void;
 }
 
@@ -51,7 +54,7 @@ const fmtDate = (iso: string) =>
 const fmtUpdated = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function BankDashboard({ mode, accounts, summary, transactions, homeTier, manual, brokerage, onClose }: Props) {
+export function BankDashboard({ mode, accounts, summary, transactions, homeTier, manual, brokerage, history, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const [form, setForm] = useState<FormState>(null);
@@ -317,6 +320,8 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
               })}
             </div>
           )}
+
+          {isManual && history && <NetWorthHistory controls={history} />}
 
           {isManual ? (
             <article className="ft-card bk-notice">

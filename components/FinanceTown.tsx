@@ -15,6 +15,7 @@ import {
   toggleId,
 } from "@/lib/brokerage";
 import { createLocalStore } from "@/lib/localStore";
+import { HISTORY_KEY, canRecord, hasConnected, parseHistory, recordSnapshot, serializeHistory } from "@/lib/netWorthHistory";
 import { formatCents } from "@/lib/money";
 import {
   HOME_UPGRADE_THRESHOLD_CENTS,
@@ -55,6 +56,8 @@ const modeStore = createLocalStore(MODE_STORAGE_KEY);
 const manualStore = createLocalStore(MANUAL_STORAGE_KEY);
 // Only ids and on/off choices live here (never balances). It is not part of manual backups.
 const prefsStore = createLocalStore(BROKERAGE_PREFS_KEY);
+// Net worth history: integer-cent totals per day (My accounts only). Browser-local, not encrypted, not in backups.
+const historyStore = createLocalStore(HISTORY_KEY);
 const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
   demo: createLocalStore(MILESTONE_STORAGE_KEY),
   manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
@@ -106,6 +109,21 @@ export function FinanceTown() {
         const env = bankPrefEnvironment(id);
         return env !== null && !(bankState?.snapshot && bankState.snapshot.environment === env && countsTowardNetWorth(bankState.snapshot.environment));
       }));
+
+  // Net worth history. Recorded only from complete, fresh My accounts totals, so a locked, partial, stale or Sandbox state adds nothing.
+  const historyRaw = useSyncExternalStore(historyStore.subscribe, historyStore.getSnapshot, historyStore.getServerSnapshot);
+  const history = useMemo(() => parseHistory(historyRaw), [historyRaw]);
+  const recordable = canRecord({ mode, manualOk: manualLoad.status === "ok", accounts, included: prefs.included, pending: brokeragePending });
+  const recordedKey = useRef("");
+  const connectedNow = hasConnected(accounts);
+  useEffect(() => {
+    if (!recordable) return;
+    const key = JSON.stringify([summary.netWorthCents, summary.assetsCents, summary.debtsCents, connectedNow]);
+    if (recordedKey.current === key) return;
+    const saved = parseHistory(historyStore.getSnapshot()); // read fresh: never overwrite data that is unreadable
+    if (saved.status !== "ok") return;
+    if (historyStore.write(serializeHistory(recordSnapshot(saved.entries, new Date(), summary, connectedNow)))) recordedKey.current = key;
+  }, [recordable, summary, connectedNow]);
 
   const brokerage = useMemo<BrokerageControls>(
     () => ({
@@ -281,7 +299,7 @@ export function FinanceTown() {
         <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>
 
-      {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} onClose={closeBank} />}
+      {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} history={mode === "manual" ? { load: history, unlocked: brokerageClient.access === "unlocked" } : undefined} onClose={closeBank} />}
     </main>
   );
 }

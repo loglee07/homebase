@@ -91,5 +91,14 @@
 - Display only: balance, inclusion, total net worth and home tier are unchanged; only the category subtotals move. The provider's own account type is never altered and nothing is written to a provider. Overdrawn Plaid accounts stay debts, and Sandbox accounts still never count.
 - Checked with synthetic fixtures: moving a stand-in for Cash Management to Savings moved its balance between subtotals with net worth unchanged, the choice survived Refresh and a page reload, and Use default restored it. Tests in `tests/categories.test.ts`.
 
+## Net worth history
+- A "Net worth history" card in the bank dashboard (My accounts only; Demo never shows or records it). It starts recording from the first complete load; nothing is backfilled. `lib/netWorthHistory.ts` (pure, tested) and `components/NetWorthHistory.tsx`.
+- One snapshot per local calendar day. A later complete load the same day replaces it; other days are never touched. Saved in `localStorage` key `finance-town:net-worth-history:v1` as `{day, at, netWorthCents, assetsCents, debtsCents, connected}` in integer cents. No account names, ids, credentials or provider payloads. Browser-local, not encrypted, and not part of manual backups. Capped at 3650 days. Unreadable saved history is never overwritten; the card says so and recording pauses.
+- Recorded only when the totals are complete and fresh: something is counted, every included connected account is loaded, nothing connected is stale, and no included balance is pending. A locked session, partial totals, stale provider data and a Sandbox server record nothing (Sandbox balances never count). Manual-only totals record without unlocking.
+- Opening the card reads saved snapshots only, so it never calls a provider. History that includes connected balances (`connected: true`) is hidden until the local access-code session is unlocked.
+- Changing which accounts are included, left out or edited changes that day's totals, and therefore the history. Older days are not recalculated, so the line can step when inclusion changes. Re-categorizing an account does not change any total.
+- One snapshot shows an honest "History starts today" state; the line appears from the second day. The exact amounts are in a table below the chart (latest 14 days).
+- Checked with synthetic fixtures: manual-only recording, same-day replacement after loading and including a connected account, a multi-day chart (earlier days seeded as synthetic test data), lock hiding the connected history without recording, and Demo showing no card.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.
