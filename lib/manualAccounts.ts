@@ -1,7 +1,7 @@
 // Manual "My accounts" mode. Only nicknames, account types and USD balances are collected:
 // no credentials, no account numbers. Values live in this browser's localStorage (not encrypted).
 import type { Account, AccountKind } from "./finance";
-import { parseDollarsToCents, type Cents } from "./money";
+import { MAX_MANUAL_CENTS, parseDollarsToCents, type Cents } from "./money";
 
 export const MANUAL_STORAGE_KEY = "finance-town:manual-accounts:v1";
 /** Where unreadable saved data is copied before an explicit reset, so it is never silently lost. */
@@ -37,7 +37,52 @@ export type ManualLoad =
 
 const isKind = (k: unknown): k is AccountKind => MANUAL_KINDS.includes(k as AccountKind);
 
-/** Strict: any malformed or unknown-version data is "invalid" (never partially accepted or overwritten). */
+export const MAX_ACCOUNTS = 200;
+
+/** Returns an error message for an unusable nickname, else undefined. Shared by the form and by file/storage loading. */
+function nameProblem(name: string): string | undefined {
+  if (!name) return "Give the account a nickname.";
+  if (name.length > NAME_MAX) return `Keep the nickname to ${NAME_MAX} characters.`;
+  if (/[\u0000-\u001f\u007f]/.test(name)) return "The nickname contains control characters.";
+  if (/\d{6,}/.test(name.replace(/[\s-]/g, ""))) return "Use a nickname, not an account number.";
+  return undefined;
+}
+const normalizeName = (name: string) => name.trim().replace(/\s+/g, " ");
+
+/**
+ * Strict validation of a whole {version, accounts} object. Any bad entry rejects everything (never partially
+ * accepted), the result is rebuilt from known fields only (extra keys are dropped), and the reason is specific.
+ */
+export function parseManualState(data: unknown): ManualLoad {
+  const bad = (reason: string): ManualLoad => ({ status: "invalid", reason });
+  const obj = data as { version?: unknown; accounts?: unknown } | null;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return bad("The data is not in the expected format.");
+  if (obj.version !== 1) return bad("This data is from an unsupported version of the app.");
+  if (!Array.isArray(obj.accounts)) return bad("The account list is missing.");
+  if (obj.accounts.length > MAX_ACCOUNTS) return bad(`There are more than ${MAX_ACCOUNTS} accounts.`);
+  const seen = new Set<string>();
+  const accounts: ManualAccount[] = [];
+  for (const [i, a] of (obj.accounts as Partial<ManualAccount>[]).entries()) {
+    const at = `Account ${i + 1}`;
+    if (!a || typeof a !== "object") return bad(`${at} is not valid.`);
+    if (typeof a.id !== "string" || a.id === "" || a.id.length > 100) return bad(`${at} has no valid id.`);
+    if (seen.has(a.id)) return bad(`${at} repeats an id used by another account.`);
+    if (typeof a.name !== "string") return bad(`${at} has no nickname.`);
+    const name = normalizeName(a.name);
+    const problem = nameProblem(name);
+    if (problem) return bad(`${at}: ${problem}`);
+    if (!isKind(a.kind)) return bad(`${at} has an invalid account type.`);
+    if (typeof a.balanceCents !== "number" || !Number.isSafeInteger(a.balanceCents) || a.balanceCents < 0 || a.balanceCents > MAX_MANUAL_CENTS) {
+      return bad(`${at} has an invalid balance. Balances must be whole cents from 0 to ${MAX_MANUAL_CENTS}.`);
+    }
+    if (typeof a.updatedAt !== "string" || Number.isNaN(Date.parse(a.updatedAt))) return bad(`${at} has an invalid update date.`);
+    seen.add(a.id);
+    accounts.push({ id: a.id, name, kind: a.kind, balanceCents: a.balanceCents, updatedAt: a.updatedAt });
+  }
+  return { status: "ok", state: { version: 1, accounts } };
+}
+
+/** Saved data: any malformed or unknown-version content is "invalid" (never partially accepted or overwritten). */
 export function loadManual(raw: string | null | undefined): ManualLoad {
   if (!raw) return { status: "ok", state: EMPTY_MANUAL };
   let data: unknown;
@@ -46,26 +91,7 @@ export function loadManual(raw: string | null | undefined): ManualLoad {
   } catch {
     return { status: "invalid", reason: "The saved data is not readable." };
   }
-  const obj = data as { version?: unknown; accounts?: unknown } | null;
-  if (!obj || typeof obj !== "object" || obj.version !== 1) {
-    return { status: "invalid", reason: "The saved data is from a different version of the app." };
-  }
-  if (!Array.isArray(obj.accounts)) return { status: "invalid", reason: "The saved account list is missing." };
-  const seen = new Set<string>();
-  const accounts: ManualAccount[] = [];
-  for (const a of obj.accounts as Partial<ManualAccount>[]) {
-    const ok =
-      a &&
-      typeof a.id === "string" && a.id !== "" && !seen.has(a.id) &&
-      typeof a.name === "string" && a.name.trim() !== "" && a.name.length <= NAME_MAX &&
-      isKind(a.kind) &&
-      typeof a.balanceCents === "number" && Number.isSafeInteger(a.balanceCents) && a.balanceCents >= 0 &&
-      typeof a.updatedAt === "string" && !Number.isNaN(Date.parse(a.updatedAt));
-    if (!ok) return { status: "invalid", reason: "One or more saved accounts have invalid values." };
-    seen.add(a.id!);
-    accounts.push({ id: a.id!, name: a.name!, kind: a.kind!, balanceCents: a.balanceCents!, updatedAt: a.updatedAt! });
-  }
-  return { status: "ok", state: { version: 1, accounts } };
+  return parseManualState(data);
 }
 
 export interface AccountInput {
@@ -86,10 +112,9 @@ export interface AccountErrors {
 
 export function validateAccountInput(input: AccountInput): { ok: true; value: ValidAccount } | { ok: false; errors: AccountErrors } {
   const errors: AccountErrors = {};
-  const name = input.name.trim().replace(/\s+/g, " ");
-  if (!name) errors.name = "Give the account a nickname.";
-  else if (name.length > NAME_MAX) errors.name = `Keep the nickname to ${NAME_MAX} characters.`;
-  else if (/\d{6,}/.test(name.replace(/[\s-]/g, ""))) errors.name = "Use a nickname, not an account number.";
+  const name = normalizeName(input.name);
+  const nameErr = nameProblem(name);
+  if (nameErr) errors.name = nameErr;
   if (!isKind(input.kind)) errors.kind = "Choose an account type.";
   const money = parseDollarsToCents(input.amountText);
   if (!money.ok) errors.amount = money.error;

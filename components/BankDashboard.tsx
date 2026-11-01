@@ -6,6 +6,8 @@ import { formatCents } from "@/lib/money";
 import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/lib/milestones";
 import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manualAccounts";
 import { AccountForm } from "./AccountForm";
+import { BackupPanel, type BackupStatus } from "./BackupPanel";
+import type { BackupPreview } from "@/lib/manualBackup";
 
 export interface ManualControls {
   load: ManualLoad;
@@ -13,6 +15,9 @@ export interface ManualControls {
   onAdd: (v: ValidAccount) => void;
   onUpdate: (id: string, v: ValidAccount) => void;
   onDelete: (id: string) => void;
+  /** Saves a validated backup over all manual accounts; true only once it is saved. */
+  onReplaceAll: (preview: BackupPreview) => boolean;
+  onExport: () => void;
   /** Copies unreadable saved data to a backup key, then starts fresh. */
   onResetUnreadable: () => void;
 }
@@ -47,6 +52,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
   const returnFocus = useRef<HTMLElement | null>(null);
   const [form, setForm] = useState<FormState>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [backup, setBackup] = useState<BackupStatus>(null);
   const isManual = mode === "manual";
   const editable = isManual && manual?.load.status === "ok";
   const manualAccounts = accounts.length;
@@ -62,15 +68,16 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
   const openForm = (next: FormState) => {
     returnFocus.current = document.activeElement as HTMLElement | null;
     setConfirmId(null);
+    setBackup(null);
     setForm(next);
   };
   const closeForm = () => {
     setForm(null);
     // let the trigger re-render first (the edited row may have changed), then put focus back
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       const el = returnFocus.current;
       (el && el.isConnected ? el : closeRef.current)?.focus();
-    });
+    }, 0);
   };
 
   useEffect(() => {
@@ -78,16 +85,19 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
   }, []);
 
   useEffect(() => {
-    // Esc backs out of the innermost thing first: form, then delete prompt, then the whole bank.
+    // Esc backs out of the innermost thing first: form, then import message, then delete prompt, then the whole bank.
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (form) closeForm();
-      else if (confirmId) setConfirmId(null);
+      else if (backup) {
+        setBackup(null);
+        setTimeout(() => (document.querySelector(".bk-toolbar-group button:nth-of-type(2)") as HTMLElement | null)?.focus(), 0);
+      } else if (confirmId) setConfirmId(null);
       else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, form, confirmId]);
+  }, [onClose, form, confirmId, backup]);
 
   const editing: ManualAccount | undefined =
     form?.kind === "edit" && manual?.load.status === "ok" ? manual.load.state.accounts.find((a) => a.id === form.id) : undefined;
@@ -193,9 +203,20 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
             />
           )}
 
-          {editable && manualAccounts > 0 && !form && (
+          {editable && !form && (
             <div className="bk-toolbar">
-              <button className="ft-btn" onClick={() => openForm({ kind: "add" })}>Add account</button>
+              {manualAccounts > 0 && <button className="ft-btn" onClick={() => openForm({ kind: "add" })}>Add account</button>}
+              <BackupPanel
+                status={backup}
+                setStatus={setBackup}
+                currentCount={manualAccounts}
+                currentNetWorthCents={summary.netWorthCents}
+                onReplace={manual!.onReplaceAll}
+                onExport={() => {
+                  manual!.onExport();
+                  setBackup({ kind: "done", message: "Backup downloaded. It is a plain file with your balances, so keep it private." });
+                }}
+              />
             </div>
           )}
 

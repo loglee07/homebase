@@ -110,7 +110,10 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .bk-notice h3 { margin-bottom: 6px; }
 .bk-notice p { margin: 0 0 10px; font-size: 16px; line-height: 1.5; max-width: 62ch; }
 .bk-notice-warn { background: #fff1e6; border-color: #e7b48f; }
-.bk-toolbar { display: flex; justify-content: flex-end; margin-bottom: -6px; }
+.bk-toolbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
+.bk-toolbar-group { display: contents; }
+.bk-toolbar > .ft-card { flex-basis: 100%; }
+.bk-notice:focus { outline: 3px solid #1b6fd1; outline-offset: 2px; }
 .bk-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
 .ft-btn-save { background: var(--gold); }
 .ft-btn-save:hover:not(:disabled) { background: #f0b73c; }

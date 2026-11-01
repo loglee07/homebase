@@ -28,6 +28,7 @@ import {
   type Mode,
   type ValidAccount,
 } from "@/lib/manualAccounts";
+import { backupFilename, serializeBackup } from "@/lib/manualBackup";
 import { sampleAccounts, sampleTransactions, type Scenario } from "@/lib/sampleData";
 import { BankDashboard, type ManualControls } from "./BankDashboard";
 
@@ -122,6 +123,29 @@ export function FinanceTown() {
       onDelete: (id: string) => {
         const s = current();
         if (s) commit(JSON.stringify(deleteAccount(s, id)));
+      },
+      onReplaceAll: (preview) => {
+        // Save first; only report success if the new data is really stored, else put back exactly what was there.
+        const previous = manualStore.getSnapshot();
+        const text = JSON.stringify(preview.state);
+        if (!manualStore.write(text)) return false;
+        if (manualStore.getSnapshot() !== text) {
+          if (previous) manualStore.write(previous);
+          return false;
+        }
+        setSaveFailed(false);
+        return true;
+      },
+      onExport: () => {
+        if (manualLoad.status !== "ok") return;
+        const url = URL.createObjectURL(new Blob([serializeBackup(manualLoad.state)], { type: "application/json" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = backupFilename();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
       },
       onResetUnreadable: () => {
         try {
