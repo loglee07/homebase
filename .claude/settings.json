@@ -1,0 +1,5 @@
+{
+  "env": {
+    "PATH": "/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  }
+}

@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "dev:stop": "bash scripts/dev-stop.sh 3000"
+    "dev": "bash scripts/with-node24.sh next dev -p 3000",
+    "build": "bash scripts/with-node24.sh next build",
+    "start": "bash scripts/with-node24.sh next start",
+    "lint": "bash scripts/with-node24.sh eslint",
+    "test": "bash scripts/with-node24.sh vitest run",
+    "typecheck": "bash scripts/with-node24.sh tsc --noEmit",
+    "dev:stop": "bash scripts/dev-stop.sh 3000",
+    "install:locked": "bash scripts/with-node24.sh npm ci",
+    "node:check": "bash scripts/with-node24.sh node -p \"process.version+' '+process.execPath\""
   },
   "dependencies": {
     "next": "16.4.3",

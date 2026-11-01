@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "finance-town",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/with-node24.sh", "npm", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

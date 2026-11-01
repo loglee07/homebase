@@ -16,7 +16,6 @@
 - No automated browser/e2e tests; scene behavior was verified manually in a browser.
 - Single milestone (home upgrade). Milestone state is per-browser localStorage.
 - `npm audit`: 16 moderate, 0 in production deps (`npm audit --omit=dev` is clean). All are the ESLint toolchain (`eslint` 9 -> `@eslint/config-array`/`@eslint/eslintrc`/`eslint-plugin-*`/`typescript-eslint` -> `minimatch` <11.0.1, glob DoS GHSA-g3hv-75wg-m249). Dev-only, runs on local config, no untrusted glob input. No compatible fix: `npm audit fix` changes nothing, and the "fix" offered is a nonsensical major downgrade (`eslint@4`, `eslint-config-next@12`). Forcing minimatch 11 would break ESLint 9 (CJS API). Revisit when `eslint-config-next`/ESLint ship a patched minimatch.
-- Machine runs Node 25.9.0 (Homebrew), not the pinned Node 24; see CLAUDE.md for the one-time `brew install node@24` step.
 
 ## Stabilization pass (done)
 - Vitest warning was the CJS/ESM config loader, fixed earlier by `vitest.config.mts`; no warning now. Runtime pinned to Node 24 (`.nvmrc`, `engines`).
@@ -25,6 +24,14 @@
 - AudioContext errors: not reproducible on a fresh tab after restart (console empty of errors). Likely a leftover from the StrictMode double mount leaving a second canvas/game; fixed by clearing the parent on cleanup in `TownGame.tsx`.
 - Browser checks (scripted `KeyboardEvent`s dispatched on `window` in the in-app browser, NOT physical keyboard): home prompt + message; manor blocks walking into it from the door; dashboard open ignores movement keys and restores the prompt on close; 900x600 window has no horizontal overflow and the dashboard scrolls vertically.
 - Not done: physical keyboard testing, real key-hold timing on other machines, windows narrower than 900px.
+
+## Node 24 setup (done)
+- `brew install node@24` (24.22.2, keg-only). Side effect: Homebrew upgraded `simdjson`, which broke the existing Homebrew Node 25.9.0 (missing libsimdjson.33). Repaired with `brew reinstall node`, which pulled the current formula, so the machine-wide `node` is now 26.13.0 (was 25.9.0). Nothing was uninstalled.
+- Wrapper `scripts/with-node24.sh` + npm scripts + `.claude/` config (see CLAUDE.md). `node_modules` reinstalled with `npm ci` under Node 24: no EBADENGINE/engine warnings; Vitest runs with no warnings.
+- Verified: `npm run node:check` -> `v24.22.2 /opt/homebrew/Cellar/node@24/24.22.2_2/bin/node`; the running `next-server` on :3000 has that binary mapped (lsof), not the default node.
+- Checks under Node 24: tests 14/14, lint, build, typecheck pass. Note `typecheck` needs `.next` route types (`LayoutProps`), so run `build` or `dev` once first after deleting `.next`.
+- Not verified: the in-app preview launcher (`preview_start`) only reads `.claude/launch.json` from the session's starting folder, which here is a scratch folder, so it could not load this project's config. Works once a session is opened in this folder.
+- ESLint audit findings (16 moderate, dev-only) left as documented; no forced upgrades/downgrades.
 
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.
