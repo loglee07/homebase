@@ -198,10 +198,14 @@ export const counted = (accounts: readonly Account[]): Account[] => accounts.fil
  * Manual accounts that might be the same money as this brokerage account: any manual investment account,
  * or any account whose nickname contains the institution's first word. A hint to ask the user, never a merge.
  */
-export function possibleDuplicates(b: Pick<BrokerageAccount, "institution">, manual: readonly Pick<Account, "id" | "name" | "kind">[]): string[] {
+export function possibleDuplicates(
+  b: { institution: string },
+  manual: readonly Pick<Account, "id" | "name" | "kind">[],
+  kinds: readonly Account["kind"][] = ["investment"],
+): string[] {
   const word = b.institution.toLowerCase().split(/[^a-z0-9]+/).find((w) => w.length >= 3) ?? "";
   return manual
-    .filter((m) => m.kind === "investment" || (word !== "" && m.name.toLowerCase().includes(word)))
+    .filter((m) => kinds.includes(m.kind) || (word !== "" && m.name.toLowerCase().includes(word)))
     .map((m) => m.id);
 }
 

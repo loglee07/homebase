@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { TownBridge, type InteractableId } from "@/game/bridge";
 import { summarize, type Account } from "@/lib/finance";
+import { bankPrefEnvironment, bankToAccounts, countsTowardNetWorth } from "@/lib/plaid";
 import {
   BROKERAGE_PREFS_KEY,
   brokerageToAccounts,
@@ -40,6 +41,7 @@ import { backupFilename, serializeBackup } from "@/lib/manualBackup";
 import { sampleAccounts, sampleTransactions, type Scenario } from "@/lib/sampleData";
 import { BankDashboard, type ManualControls } from "./BankDashboard";
 import type { BrokerageControls } from "./BrokeragePanel";
+import { useBank } from "./useBank";
 import { useBrokerage } from "./useBrokerage";
 
 const TownGame = dynamic(() => import("./TownGame"), {
@@ -77,6 +79,9 @@ export function FinanceTown() {
   const prefs = useMemo(() => parsePrefs(prefsRaw), [prefsRaw]);
   const brokerageClient = useBrokerage(mode === "manual");
   const brokerageState = brokerageClient.state;
+  // BluPeak (Plaid) rides on the same local session: locking drops its balances from the page too.
+  const bankClient = useBank(mode === "manual" && brokerageClient.access === "unlocked");
+  const bankState = bankClient.state;
 
   // Active mode decides the accounts. Demo controls only ever touch the demo scenario.
   // My accounts = manual accounts (minus any the user left out) + brokerage accounts the user included.
@@ -85,23 +90,32 @@ export function FinanceTown() {
       mode === "demo"
         ? sampleAccounts(scenario)
         : manualLoad.status === "ok"
-          ? [...markManual(toAccounts(manualLoad.state), prefs), ...brokerageToAccounts(brokerageState, prefs)]
+          ? [...markManual(toAccounts(manualLoad.state), prefs), ...brokerageToAccounts(brokerageState, prefs), ...bankToAccounts(bankState, prefs)]
           : [],
-    [mode, scenario, manualLoad, prefs, brokerageState],
+    [mode, scenario, manualLoad, prefs, brokerageState, bankState],
   );
   const summary = useMemo(() => summarize(counted(accounts)), [accounts]);
   // Included brokerage accounts whose balances are not loaded yet: net worth is incomplete, so do not move the home tier.
-  const brokeragePending = mode === "manual" && prefs.included.length > 0 && !brokerageState?.snapshot;
+  const brokeragePending =
+    mode === "manual" &&
+    ((prefs.included.some((id) => !id.startsWith("plaid:")) && !brokerageState?.snapshot) ||
+      // Every Plaid environment with an included account must have its own counted snapshot loaded. A sandbox server
+      // never satisfies a production inclusion, so running Sandbox freezes the tier instead of dropping it.
+      prefs.included.some((id) => {
+        const env = bankPrefEnvironment(id);
+        return env !== null && !(bankState?.snapshot && bankState.snapshot.environment === env && countsTowardNetWorth(bankState.snapshot.environment));
+      }));
 
   const brokerage = useMemo<BrokerageControls>(
     () => ({
       client: brokerageClient,
+      bank: bankClient,
       prefs,
       pending: brokeragePending,
       onToggleInclude: (id) => void prefsStore.write(JSON.stringify({ ...prefs, included: toggleId(prefs.included, id) })),
       onToggleManualExcluded: (id) => void prefsStore.write(JSON.stringify({ ...prefs, excludedManual: toggleId(prefs.excludedManual, id) })),
     }),
-    [brokerageClient, prefs, brokeragePending],
+    [brokerageClient, bankClient, prefs, brokeragePending],
   );
 
   // Saved milestones live in localStorage (one save per mode); read through an external-store hook so SSR stays stable.

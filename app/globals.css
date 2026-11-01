@@ -158,3 +158,4 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
 .bk-fold-btn:focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
 .bk-fold-hint { margin-left: auto; font-size: 14px; font-weight: 600; color: #1b5fa8; text-decoration: underline; }
 .bk-sources { margin: 0; }
+.bk-sandbox { background: #fff7d6; border: 2px solid #d9b23f; border-radius: 4px; padding: 6px 10px; font-size: 15px; margin: 6px 0; max-width: 62ch; }

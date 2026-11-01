@@ -7,6 +7,7 @@ import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/
 import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manualAccounts";
 import { AccountForm } from "./AccountForm";
 import { BackupPanel, type BackupStatus } from "./BackupPanel";
+import { BluPeakPanel } from "./BluPeakPanel";
 import { BrokeragePanel, fmtDateTime, type BrokerageControls } from "./BrokeragePanel";
 import type { BackupPreview } from "@/lib/manualBackup";
 
@@ -63,7 +64,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
   const manualAccounts = isManual ? manualList.length : accounts.length;
   // Included brokerage accounts (or, while they load, the ones the user already chose) also make the dashboard non-empty.
   const connectedCount = isManual
-    ? Math.max(accounts.filter((a) => a.source === "snaptrade").length, brokerage?.pending ? brokerage.prefs.included.length : 0)
+    ? Math.max(accounts.filter((a) => a.source === "snaptrade" || a.source === "plaid").length, brokerage?.pending ? brokerage.prefs.included.length : 0)
     : 0;
   const manualNetWorthCents = summarize(manualList).netWorthCents;
   const names = Object.fromEntries(accounts.map((a) => [a.id, a.name]));
@@ -193,7 +194,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
               <h3>Set up your accounts</h3>
               <p>
                 Add the balances you want to track: a nickname, an account type and the current balance. You update manual balances by hand,
-                and they are saved in this browser. You can also load read-only brokerage balances from SnapTrade below.
+                and they are saved in this browser. You can also load read-only balances from SnapTrade (brokerages) and Plaid (BluPeak) below.
               </p>
               <div className="bk-actions">
                 <button className="ft-btn ft-btn-save" onClick={() => openForm({ kind: "add" })}>Add your first account</button>
@@ -234,10 +235,11 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
           )}
 
           {editable && !form && brokerage && <BrokeragePanel controls={brokerage} manual={manualList} />}
+          {editable && !form && brokerage && <BluPeakPanel controls={brokerage} manual={manualList} />}
 
           {editable && accounts.length > 0 && (
             <p className="bk-note bk-sources">
-              Manual balances are typed by you and saved in this browser. Brokerage balances are read-only and come from SnapTrade.
+              Manual balances are typed by you and saved in this browser. Connected balances are read-only: brokerage accounts come from SnapTrade and BluPeak comes from Plaid.
             </p>
           )}
 
@@ -263,19 +265,19 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
                             <span>
                               {a.name}
                               <small>
-                                {a.source === "snaptrade"
-                                  ? `SnapTrade · ${a.institution} · ${a.asOf ? `Brokerage data as of ${fmtDateTime(a.asOf)}` : "Brokerage sync time unknown"} · Fetched ${fmtDateTime(a.fetchedAt ?? "")}${a.stale ? " · Stale" : ""}`
+                                {a.source === "snaptrade" || a.source === "plaid"
+                                  ? `${a.source === "plaid" ? "Plaid" : "SnapTrade"} · ${a.institution} · ${a.asOf ? `${a.source === "plaid" ? "Bank" : "Brokerage"} data as of ${fmtDateTime(a.asOf)}` : "Update time unknown"} · Fetched ${fmtDateTime(a.fetchedAt ?? "")}${a.stale ? " · Stale" : ""}`
                                   : a.updatedAt
                                     ? `${isManual ? "Manual · " : ""}${grp.kind === "debt" ? "Amount owed · " : ""}Updated ${fmtUpdated(a.updatedAt)}${a.excluded ? " · Left out of net worth" : ""}`
                                     : a.institution}
                                 {a.aprBasisPoints != null && ` · ${(a.aprBasisPoints / 100).toFixed(2)}% APR`}
                               </small>
-                              {editable && a.source === "snaptrade" && brokerage && (
+                              {editable && (a.source === "snaptrade" || a.source === "plaid") && brokerage && (
                                 <span className="bk-row-actions">
-                                  <button className="bk-link" aria-label={`Stop counting ${a.name}`} onClick={() => brokerage.onToggleInclude(a.id.replace(/^snaptrade:/, ""))}>Stop counting</button>
+                                  <button className="bk-link" aria-label={`Stop counting ${a.name}`} onClick={() => brokerage.onToggleInclude(a.source === "snaptrade" ? a.id.replace(/^snaptrade:/, "") : a.id)}>Stop counting</button>
                                 </span>
                               )}
-                              {editable && a.source !== "snaptrade" && (
+                              {editable && a.source !== "snaptrade" && a.source !== "plaid" && (
                                 <span className="bk-row-actions">
                                   {confirmId === a.id ? (
                                     <>
@@ -321,7 +323,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
               <h3>Transactions</h3>
               <p>
                 {connectedCount > 0
-                  ? "Brokerage balances are connected, but transaction syncing is not implemented yet."
+                  ? "Connected balances are read-only, and transaction syncing is not implemented yet."
                   : "Transactions are not available yet: transaction entry and syncing are not implemented."}{" "}
                 The activity shown in demo mode is sample data and is never mixed into your accounts.
               </p>

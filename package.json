@@ -10,15 +10,19 @@
     "test": "bash scripts/with-node24.sh vitest run",
     "typecheck": "bash scripts/with-node24.sh tsc --noEmit",
     "dev:stop": "bash scripts/dev-stop.sh 3000",
-    "env:init": "bash scripts/env-init.sh",
+    "env:init": "bash scripts/with-node24.sh node scripts/env-init.mjs",
+    "plaid:env": "bash scripts/with-node24.sh node scripts/plaid-env.mjs",
+    "vault:key": "bash scripts/with-node24.sh node scripts/vault-key.mjs",
     "install:locked": "bash scripts/with-node24.sh npm ci",
     "node:check": "bash scripts/with-node24.sh node -p \"process.version+' '+process.execPath\""
   },
   "dependencies": {
     "next": "16.4.3",
     "phaser": "^4.2.1",
+    "plaid": "^49.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-plaid-link": "^5.0.0",
     "snaptrade-typescript-sdk": "^13.1.14"
   },
   "devDependencies": {

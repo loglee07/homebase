@@ -11,10 +11,12 @@ import {
 import type { Account } from "@/lib/finance";
 import { createLocalStore } from "@/lib/localStore";
 import { formatCents } from "@/lib/money";
+import type { BankClient } from "./useBank";
 import type { BrokerageClient } from "./useBrokerage";
 
 export interface BrokerageControls {
   client: BrokerageClient;
+  bank: BankClient;
   prefs: BrokeragePrefs;
   /** Included accounts exist but no snapshot is loaded yet, so net worth is missing them. */
   pending: boolean;
@@ -34,10 +36,34 @@ interface Props {
   manual: Account[];
 }
 
+/** The local access-code form. Shared by the brokerage and BluPeak panels (one session unlocks both). */
+export function UnlockForm({ client }: { client: BrokerageClient }) {
+  const [code, setCode] = useState("");
+  const { busy, message } = client;
+  return (
+    <form
+      className="bk-unlock"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (await client.unlock(code)) setCode("");
+      }}
+    >
+      <p>Enter your local access code to load connected balances. It is checked by this computer&apos;s server and never stored in the page.</p>
+      <label className="bk-field">
+        <span>Access code</span>
+        <input type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} disabled={busy} />
+      </label>
+      <div className="bk-actions">
+        <button className="ft-btn ft-btn-save" type="submit" disabled={busy || code.length === 0}>Unlock</button>
+      </div>
+      {message && <p className="bk-error" role="alert">{message}</p>}
+    </form>
+  );
+}
+
 export function BrokeragePanel({ controls, manual }: Props) {
   const { client, prefs, onToggleInclude, onToggleManualExcluded } = controls;
   const { access, provider, state, busy, message } = client;
-  const [code, setCode] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
   const cooldownUntil = state?.cooldownUntil ? Date.parse(state.cooldownUntil) : 0;
@@ -97,23 +123,7 @@ export function BrokeragePanel({ controls, manual }: Props) {
     return (
       <article className="ft-card bk-notice">
         {head}
-        <form
-          className="bk-unlock"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (await client.unlock(code)) setCode("");
-          }}
-        >
-          <p>Enter your local access code to load brokerage balances. It is checked by this computer&apos;s server and never stored in the page.</p>
-          <label className="bk-field">
-            <span>Access code</span>
-            <input type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} disabled={busy} />
-          </label>
-          <div className="bk-actions">
-            <button className="ft-btn ft-btn-save" type="submit" disabled={busy || code.length === 0}>Unlock</button>
-          </div>
-          {message && <p className="bk-error" role="alert">{message}</p>}
-        </form>
+        <UnlockForm client={client} />
       </article>
     );
   }

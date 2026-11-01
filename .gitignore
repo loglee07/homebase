@@ -48,3 +48,6 @@ next-env.d.ts
 
 # manual account backups exported from the app contain personal balances: never commit
 finance-town-accounts-*.json
+
+# encrypted Plaid access token (server-only, see docs/plaid.md): never commit
+/.data/

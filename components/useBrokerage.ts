@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BrokerageState } from "@/lib/brokerage";
+import { apiCall } from "./apiCall";
 
 export type Access = "checking" | "not_configured" | "locked" | "unlocked";
 export type ProviderKind = "none" | "snaptrade" | "fixtures";
@@ -19,22 +20,7 @@ export interface BrokerageClient {
   refresh: () => Promise<void>;
 }
 
-async function call(path: string, method: "GET" | "POST" | "DELETE", body?: unknown): Promise<{ status: number; data: unknown }> {
-  const res = await fetch(`/api/brokerage/${path}`, {
-    method,
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  let data: unknown = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  return { status: res.status, data };
-}
+const call = (path: string, method: "GET" | "POST" | "DELETE", body?: unknown) => apiCall(`brokerage/${path}`, method, body);
 
 /**
  * Talks only to this app's own loopback API. Financial data is held in React state, never written to
