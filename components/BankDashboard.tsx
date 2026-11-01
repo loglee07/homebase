@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Account, FinanceSummary, Transaction } from "@/lib/finance";
+import { TRANSACTION_KIND, type Account, type FinanceSummary, type Transaction } from "@/lib/finance";
 import { formatCents } from "@/lib/money";
-import { HOME_UPGRADE_THRESHOLD_CENTS } from "@/lib/milestones";
+import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/lib/milestones";
 
 interface Props {
   accounts: Account[];
   summary: FinanceSummary;
   transactions: Transaction[];
+  homeTier: HomeTier;
   onClose: () => void;
 }
 
@@ -22,7 +23,7 @@ const GROUPS: { kind: Account["kind"]; title: string; icon: string }[] = [
 const fmtDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-export function BankDashboard({ accounts, summary, transactions, onClose }: Props) {
+export function BankDashboard({ accounts, summary, transactions, homeTier, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const names = Object.fromEntries(accounts.map((a) => [a.id, a.name]));
   const totals: Record<Account["kind"], number> = {
@@ -31,7 +32,7 @@ export function BankDashboard({ accounts, summary, transactions, onClose }: Prop
     investment: summary.investmentsCents,
     debt: summary.debtsCents,
   };
-  const progress = Math.max(0, Math.min(100, Math.round((summary.netWorthCents / HOME_UPGRADE_THRESHOLD_CENTS) * 100)));
+  const status = milestoneStatus(homeTier, summary.netWorthCents);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -54,20 +55,47 @@ export function BankDashboard({ accounts, summary, transactions, onClose }: Prop
         </header>
 
         <div className="ft-bank-body">
-          <div className="ft-networth">
-            <div>
-              <div className="ft-label">Net worth</div>
-              <div className="ft-big" data-testid="net-worth">{formatCents(summary.netWorthCents)}</div>
-              <div className="ft-sub">
-                {formatCents(summary.assetsCents)} assets − {formatCents(summary.debtsCents)} debts
-              </div>
+          <div className="bk-hero">
+            <div className="bk-nw">
+              <h3 className="bk-h">Net worth</h3>
+              <p className="bk-figure" data-testid="net-worth">{formatCents(summary.netWorthCents)}</p>
+              <dl className="bk-eq">
+                <div>
+                  <dt>Assets</dt>
+                  <dd>{formatCents(summary.assetsCents)}</dd>
+                  <dd className="bk-note">Checking, savings and investments</dd>
+                </div>
+                <div>
+                  <dt>Debts</dt>
+                  <dd className="neg">−{formatCents(summary.debtsCents)}</dd>
+                  <dd className="bk-note">Loans and credit cards</dd>
+                </div>
+              </dl>
             </div>
-            <div className="ft-goal">
-              <div className="ft-label">Home upgrade at {formatCents(HOME_UPGRADE_THRESHOLD_CENTS)}</div>
-              <div className="ft-meter" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-                <span style={{ width: `${progress}%` }} />
-              </div>
-              <div className="ft-sub">{progress}% of the way</div>
+
+            <div className="bk-milestone">
+              {status.unlocked ? (
+                <p className="bk-unlocked">
+                  <span aria-hidden>🏡</span> Home upgraded · milestone achieved
+                </p>
+              ) : (
+                <>
+                  <h3 className="bk-h">Home upgrade at {formatCents(HOME_UPGRADE_THRESHOLD_CENTS)}</h3>
+                  <div
+                    className="ft-meter"
+                    role="progressbar"
+                    aria-label="Progress toward the home upgrade"
+                    aria-valuenow={status.progressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <span style={{ width: `${status.progressPercent}%` }} />
+                  </div>
+                  <p className="bk-note">
+                    {status.progressPercent}% of the way · {formatCents(status.remainingCents)} to go
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -76,11 +104,11 @@ export function BankDashboard({ accounts, summary, transactions, onClose }: Prop
               <article key={grp.kind} className="ft-card">
                 <h3>
                   <span aria-hidden>{grp.icon}</span> {grp.title}
-                  <b className={grp.kind === "debt" ? "neg" : ""}>
-                    {grp.kind === "debt" ? "−" : ""}
-                    {formatCents(totals[grp.kind])}
-                  </b>
                 </h3>
+                <p className={`bk-total ${grp.kind === "debt" ? "neg" : ""}`}>
+                  {grp.kind === "debt" ? "−" : ""}
+                  {formatCents(totals[grp.kind])}
+                </p>
                 <ul>
                   {accounts.filter((a) => a.kind === grp.kind).map((a) => (
                     <li key={a.id}>
@@ -106,14 +134,22 @@ export function BankDashboard({ accounts, summary, transactions, onClose }: Prop
                 <tr><th>Date</th><th>Description</th><th>Account</th><th className="amt">Amount</th></tr>
               </thead>
               <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td>{fmtDate(t.date)}</td>
-                    <td>{t.description}<small>{t.category}</small></td>
-                    <td>{names[t.accountId] ?? t.accountId}</td>
-                    <td className={`amt ${t.amountCents < 0 ? "neg" : "pos"}`}>{formatCents(t.amountCents, { signed: true })}</td>
-                  </tr>
-                ))}
+                {transactions.map((t) => {
+                  const k = TRANSACTION_KIND[t.kind];
+                  return (
+                    <tr key={t.id}>
+                      <td className="tx-date">{fmtDate(t.date)}</td>
+                      <td>
+                        {t.description}
+                        <small>
+                          <span className={`tx-badge tx-${k.tone}`}>{k.label}</span> {t.category}
+                        </small>
+                      </td>
+                      <td>{names[t.accountId] ?? t.accountId}</td>
+                      <td className={`amt tx-amt-${k.tone}`}>{formatCents(t.amountCents, { signed: true })}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </article>

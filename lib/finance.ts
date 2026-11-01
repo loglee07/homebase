@@ -13,6 +13,13 @@ export interface Account {
   aprBasisPoints?: number;
 }
 
+/**
+ * Explicit classification, set on each fixture (never guessed from merchant names).
+ * income: earned money in. spending: purchases and bills.
+ * transfer / investment / debt_payment: money moved or put to work, not earned and not spent.
+ */
+export type TransactionKind = "income" | "spending" | "transfer" | "investment" | "debt_payment";
+
 export interface Transaction {
   id: string;
   /** ISO date, YYYY-MM-DD. */
@@ -20,9 +27,20 @@ export interface Transaction {
   description: string;
   category: string;
   accountId: string;
-  /** Negative = money out, positive = money in. */
+  /** Account-level amount. Negative = money out of that account, positive = money in. */
   amountCents: Cents;
+  kind: TransactionKind;
 }
+
+export type TransactionTone = "income" | "spending" | "neutral";
+
+export const TRANSACTION_KIND: Record<TransactionKind, { label: string; tone: TransactionTone }> = {
+  income: { label: "Income", tone: "income" },
+  spending: { label: "Spending", tone: "spending" },
+  transfer: { label: "Transfer", tone: "neutral" },
+  investment: { label: "Investment purchase", tone: "neutral" },
+  debt_payment: { label: "Debt payment", tone: "neutral" },
+};
 
 export interface FinanceSummary {
   checkingCents: Cents;

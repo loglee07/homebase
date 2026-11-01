@@ -31,6 +31,20 @@ export function applyMilestones(
   return { state: { ...state, homeTier: 1, homeUpgradedAt: null }, upgraded: false, downgraded: true };
 }
 
+export type MilestoneStatus =
+  | { unlocked: true }
+  | { unlocked: false; progressPercent: number; remainingCents: Cents };
+
+/**
+ * What the dashboard says about the home upgrade. Driven by the unlocked tier, not by current net worth,
+ * so an unlocked home keeps saying so. Before unlocking, percent is floored so 99.9% never reads as 100%.
+ */
+export function milestoneStatus(homeTier: HomeTier, netWorthCents: Cents): MilestoneStatus {
+  if (homeTier >= 2) return { unlocked: true };
+  const progressPercent = Math.max(0, Math.min(99, Math.floor((netWorthCents * 100) / HOME_UPGRADE_THRESHOLD_CENTS)));
+  return { unlocked: false, progressPercent, remainingCents: Math.max(0, HOME_UPGRADE_THRESHOLD_CENTS - netWorthCents) };
+}
+
 export function loadMilestones(storage: ReadableStorage | null | undefined): MilestoneState {
   try {
     const raw = storage?.getItem(MILESTONE_STORAGE_KEY);

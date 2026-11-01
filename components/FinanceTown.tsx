@@ -130,7 +130,7 @@ export function FinanceTown() {
         <p className="ft-help">Move: WASD / arrows · Interact: E · Sample data only</p>
       </div>
 
-      {bankOpen && <BankDashboard accounts={accounts} summary={summary} transactions={sampleTransactions} onClose={closeBank} />}
+      {bankOpen && <BankDashboard accounts={accounts} summary={summary} transactions={sampleTransactions} homeTier={milestones.homeTier} onClose={closeBank} />}
     </main>
   );
 }

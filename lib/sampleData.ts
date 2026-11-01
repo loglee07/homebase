@@ -20,14 +20,14 @@ export function sampleAccounts(scenario: Scenario): Account[] {
 }
 
 export const sampleTransactions: Transaction[] = [
-  { id: "t1", date: "2026-10-31", description: "Corner Market", category: "Groceries", accountId: "checking", amountCents: -6_432 },
-  { id: "t2", date: "2026-10-30", description: "Paycheck", category: "Income", accountId: "checking", amountCents: 242_015 },
-  { id: "t3", date: "2026-10-29", description: "Transfer to Savings", category: "Transfer", accountId: "savings", amountCents: 50_000 },
-  { id: "t4", date: "2026-10-28", description: "Bean There Coffee", category: "Dining", accountId: "card", amountCents: -675 },
-  { id: "t5", date: "2026-10-27", description: "Power & Water", category: "Utilities", accountId: "checking", amountCents: -11_890 },
-  { id: "t6", date: "2026-10-25", description: "Student Loan Payment", category: "Debt", accountId: "student", amountCents: -32_000 },
-  { id: "t7", date: "2026-10-24", description: "Index Fund Purchase", category: "Investing", accountId: "brokerage", amountCents: 75_000 },
-  { id: "t8", date: "2026-10-22", description: "Bookshop", category: "Shopping", accountId: "card", amountCents: -3_418 },
-  { id: "t9", date: "2026-10-20", description: "Savings Interest", category: "Income", accountId: "savings", amountCents: 3_127 },
-  { id: "t10", date: "2026-10-18", description: "Rent Share", category: "Housing", accountId: "checking", amountCents: -95_000 },
+  { id: "t1", date: "2026-10-31", description: "Corner Market", category: "Groceries", accountId: "checking", amountCents: -6_432, kind: "spending" },
+  { id: "t2", date: "2026-10-30", description: "Paycheck", category: "Income", accountId: "checking", amountCents: 242_015, kind: "income" },
+  { id: "t3", date: "2026-10-29", description: "Transfer to Savings", category: "Transfer", accountId: "savings", amountCents: 50_000, kind: "transfer" },
+  { id: "t4", date: "2026-10-28", description: "Bean There Coffee", category: "Dining", accountId: "card", amountCents: -675, kind: "spending" },
+  { id: "t5", date: "2026-10-27", description: "Power & Water", category: "Utilities", accountId: "checking", amountCents: -11_890, kind: "spending" },
+  { id: "t6", date: "2026-10-25", description: "Student Loan Payment", category: "Debt", accountId: "student", amountCents: -32_000, kind: "debt_payment" },
+  { id: "t7", date: "2026-10-24", description: "Index Fund Purchase", category: "Investing", accountId: "brokerage", amountCents: 75_000, kind: "investment" },
+  { id: "t8", date: "2026-10-22", description: "Bookshop", category: "Shopping", accountId: "card", amountCents: -3_418, kind: "spending" },
+  { id: "t9", date: "2026-10-20", description: "Savings Interest", category: "Income", accountId: "savings", amountCents: 3_127, kind: "income" },
+  { id: "t10", date: "2026-10-18", description: "Rent Share", category: "Housing", accountId: "checking", amountCents: -95_000, kind: "spending" },
 ];

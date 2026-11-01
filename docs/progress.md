@@ -49,5 +49,13 @@
 - Custom sprites load with or without the pack (code-drawn art only if a file fails to load). The cobblestone path needs the pack's path tiles, so without the pack the path stays code-drawn dirt.
 - Bank sign text unreadable at 96px.
 
+## Bank dashboard redesign (done)
+- Accounts in a 2x2 grid (1 column under 760px); net worth hero with assets and debts explained underneath; pixel font for headings only, regular font for names and all figures.
+- Milestone panel: before unlocking, progress toward $100,000 (floored percent, amount to go); once the home tier is upgraded, "Home upgraded · milestone achieved" (`milestoneStatus` in `lib/milestones.ts`, driven by the tier, not by current net worth).
+- Transactions carry an explicit `kind` in the fixtures (income, spending, transfer, investment, debt_payment); labels and tones in `TRANSACTION_KIND`. Transfers, investment purchases and debt payments are neutral and labeled; amounts and signs are the account-level values.
+- Verified in the browser at 1440x900 and 900x600: Esc closes, focus starts on Leave bank, body scrolls vertically, no horizontal overflow, locked and unlocked messaging. Movement pausing code was not touched and not re-tested by walking.
+- Limitation: home tier currently reverts when net worth falls below $100,000 (a later request); the "stays unlocked" message therefore only differs from net-worth state if one-way behavior is restored.
+- Bank artwork intentionally keeps the original sign art, no text overlay. Building-name labels may come later as a separate interface layer.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.

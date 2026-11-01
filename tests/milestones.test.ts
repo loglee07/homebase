@@ -5,6 +5,7 @@ import {
   MILESTONE_STORAGE_KEY,
   applyMilestones,
   loadMilestones,
+  milestoneStatus,
   saveMilestones,
 } from "@/lib/milestones";
 
@@ -72,5 +73,19 @@ describe("milestone persistence", () => {
     const boom = { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("denied"); } };
     expect(loadMilestones(boom)).toEqual(INITIAL_MILESTONES);
     expect(() => saveMilestones(boom, INITIAL_MILESTONES)).not.toThrow();
+  });
+});
+
+describe("milestone status for the dashboard", () => {
+  it("shows progress before unlocking, floored so it never reads 100%", () => {
+    expect(milestoneStatus(1, 0)).toEqual({ unlocked: false, progressPercent: 0, remainingCents: T });
+    const near = milestoneStatus(1, T - 1);
+    expect(near).toEqual({ unlocked: false, progressPercent: 99, remainingCents: 1 });
+    expect(milestoneStatus(1, 7_126_457)).toMatchObject({ progressPercent: 71, remainingCents: T - 7_126_457 });
+  });
+
+  it("stays unlocked whenever the home is upgraded, whatever net worth currently is", () => {
+    expect(milestoneStatus(2, T)).toEqual({ unlocked: true });
+    expect(milestoneStatus(2, 0)).toEqual({ unlocked: true });
   });
 });
