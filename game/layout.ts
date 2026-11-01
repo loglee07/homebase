@@ -12,7 +12,7 @@ export type TreeKind = "oak" | "oak2" | "blossom" | "autumn";
 /** Path tiles as inclusive tile rects [c0, r0, c1, r1]. */
 const PATHS: [number, number, number, number][] = [
   [3, 10, 27, 11], // main street
-  [6, 8, 7, 9], // home walk
+  [6, 7, 7, 9], // home walk (starts under the building so it meets the doorstep)
   [22, 8, 23, 9], // bank walk
   [12, 9, 17, 12], // plaza
   [14, 13, 15, 16], // south trail

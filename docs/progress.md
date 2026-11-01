@@ -39,5 +39,10 @@
 - Still placeholders: cottage, manor, bank, fountain, bench, mailbox, blossom/autumn trees (list with sizes/anchors in `docs/assets.md`).
 - Checked: no licensed files tracked or in git history; remote `origin/main` is only the initial commit. Verified in the browser with and without the pack folder; no new automated tests.
 
+## Cottage rendering and doorstep (done)
+- Cottage sprite re-sampled with nearest-neighbor (no blended colors); runtime already crisp (`pixelArt`, pixelated canvas, 1:1 sprite, 1.47x non-integer canvas scale like all sprites). Home path now starts under the building so it meets the door; the door prompt was reached by walking in the browser.
+- The cottage is a temporary high-detail asset; replace with native 64x72 art (see `docs/assets.md`).
+- Manor tier not re-verified after these changes.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.

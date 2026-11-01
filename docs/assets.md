@@ -48,4 +48,8 @@ Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view 
 | Plaza paving (optional) | 16x16 tiles, 3x3 blob + inner corners like `Path_Tile.png` | tile grid | none | Plaza currently reuses the dirt path |
 | Spark / smoke puff (optional) | 7x7 / 6x6 | center | none | Effects only |
 
+Note on `home_1.png`: **temporary, high-detail asset.** It is nearest-sampled from AI-generated art (~7.6px blocks), so every pixel is a true source color with no blended edges, but it has ~2,700 colors versus the pack's roughly 10 per sprite. Its replacement should be designed natively for the existing 64x72 canvas (bottom-center anchor, same footprint) with a small palette. No further renderer changes or automatic palette reduction are planned.
+
+Status: the manor tier (home tier 2, code-drawn placeholder) is **unverified** after the cottage/manor assignment fix and the doorstep path change.
+
 Source dimensions for buildings keep today's layout, so no layout changes are needed. The pack's own house is 96x128 and was not used (wrong scale for this layout and not a bank).
