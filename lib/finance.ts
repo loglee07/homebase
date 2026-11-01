@@ -13,6 +13,16 @@ export interface Account {
   aprBasisPoints?: number;
   /** Manual accounts only: ISO timestamp of the last time the balance was entered. */
   updatedAt?: string;
+  /** Where the balance came from. Missing means sample data. */
+  source?: "manual" | "snaptrade";
+  /** Brokerage accounts only: when the brokerage last synced this balance (not when Finance Town fetched it). */
+  asOf?: string;
+  /** Brokerage accounts only: when Finance Town last fetched the snapshot. */
+  fetchedAt?: string;
+  /** Brokerage accounts only: the last refresh failed, so this is the previous snapshot. */
+  stale?: boolean;
+  /** Display only: kept in the list but left out of net worth (for example a manual duplicate of a connected account). */
+  excluded?: boolean;
 }
 
 /**

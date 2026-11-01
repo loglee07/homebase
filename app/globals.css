@@ -139,3 +139,22 @@ kbd { font-family: var(--font-pixel); background: var(--paper); color: var(--ink
   .ft-demo { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* brokerage (read-only SnapTrade) */
+.bk-notice code { font-size: 14px; background: #efe3c3; padding: 1px 4px; border-radius: 3px; }
+.bk-field { display: flex; flex-direction: column; gap: 4px; max-width: 320px; font-weight: 600; margin: 6px 0; }
+.bk-field input { font: inherit; padding: 6px 8px; border: 2px solid var(--wood-d); border-radius: 4px; background: #fffdf6; }
+.bk-error { color: #8a2b0f; font-weight: 600; }
+.bk-badge { align-self: center; font-size: 14px; font-weight: 700; background: #e6f5da; border: 2px solid #7fb069; border-radius: 4px; padding: 2px 8px; }
+.bk-brokers { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.bk-brokers li { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; align-items: baseline; border-top: 1px solid #e4d6ad; padding-top: 8px; }
+.bk-check { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 280px; cursor: pointer; }
+.bk-check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.bk-check small { display: block; font-size: 14px; font-weight: 400; color: var(--ink-soft); }
+.bk-dupe { flex-basis: 100%; background: #fff1e6; border: 2px solid #e7b48f; border-radius: 4px; padding: 6px 10px; font-size: 14px; display: grid; gap: 4px; justify-items: start; }
+.amt.excl { text-decoration: line-through; opacity: 0.6; }
+.bk-fold { margin: 0; }
+.bk-fold-btn { all: unset; box-sizing: border-box; display: flex; width: 100%; gap: 6px; align-items: center; cursor: pointer; font: inherit; border-radius: 4px; padding: 2px 0; }
+.bk-fold-btn:focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
+.bk-fold-hint { margin-left: auto; font-size: 14px; font-weight: 600; color: #1b5fa8; text-decoration: underline; }
+.bk-sources { margin: 0; }

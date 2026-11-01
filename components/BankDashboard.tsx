@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { TRANSACTION_KIND, type Account, type FinanceSummary, type Transaction } from "@/lib/finance";
+import { TRANSACTION_KIND, summarize, type Account, type FinanceSummary, type Transaction } from "@/lib/finance";
 import { formatCents } from "@/lib/money";
 import { HOME_UPGRADE_THRESHOLD_CENTS, milestoneStatus, type HomeTier } from "@/lib/milestones";
 import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manualAccounts";
 import { AccountForm } from "./AccountForm";
 import { BackupPanel, type BackupStatus } from "./BackupPanel";
+import { BrokeragePanel, fmtDateTime, type BrokerageControls } from "./BrokeragePanel";
 import type { BackupPreview } from "@/lib/manualBackup";
 
 export interface ManualControls {
@@ -30,6 +31,8 @@ interface Props {
   transactions: Transaction[];
   homeTier: HomeTier;
   manual?: ManualControls;
+  /** My accounts only: read-only brokerage balances and the include/exclude choices. */
+  brokerage?: BrokerageControls;
   onClose: () => void;
 }
 
@@ -47,7 +50,7 @@ const fmtDate = (iso: string) =>
 const fmtUpdated = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function BankDashboard({ mode, accounts, summary, transactions, homeTier, manual, onClose }: Props) {
+export function BankDashboard({ mode, accounts, summary, transactions, homeTier, manual, brokerage, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const [form, setForm] = useState<FormState>(null);
@@ -55,7 +58,14 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
   const [backup, setBackup] = useState<BackupStatus>(null);
   const isManual = mode === "manual";
   const editable = isManual && manual?.load.status === "ok";
-  const manualAccounts = accounts.length;
+  // Backups and the "set up" prompt only concern accounts typed in by hand, never brokerage data.
+  const manualList = accounts.filter((a) => a.source === "manual");
+  const manualAccounts = isManual ? manualList.length : accounts.length;
+  // Included brokerage accounts (or, while they load, the ones the user already chose) also make the dashboard non-empty.
+  const connectedCount = isManual
+    ? Math.max(accounts.filter((a) => a.source === "snaptrade").length, brokerage?.pending ? brokerage.prefs.included.length : 0)
+    : 0;
+  const manualNetWorthCents = summarize(manualList).netWorthCents;
   const names = Object.fromEntries(accounts.map((a) => [a.id, a.name]));
   const totals: Record<Account["kind"], number> = {
     checking: summary.checkingCents,
@@ -107,7 +117,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
       <section className="ft-bank" role="dialog" aria-modal="true" aria-labelledby="bank-title">
         <header className="ft-bank-head">
           <h2 id="bank-title">Town Bank</h2>
-          <span className="ft-pill">{isManual ? "My accounts · saved in this browser" : "Sample data · read-only"}</span>
+          <span className="ft-pill">{isManual ? "My accounts" : "Sample data · read-only"}</span>
           <button ref={closeRef} className="ft-btn" onClick={onClose}>
             Leave bank <kbd>Esc</kbd>
           </button>
@@ -118,6 +128,7 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
             <div className="bk-nw">
               <h3 className="bk-h">Net worth</h3>
               <p className="bk-figure" data-testid="net-worth">{formatCents(summary.netWorthCents)}</p>
+              {brokerage?.pending && <p className="bk-note">Partial: included brokerage balances have not loaded yet.</p>}
               <dl className="bk-eq">
                 <div>
                   <dt>Assets</dt>
@@ -177,12 +188,12 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
             </article>
           )}
 
-          {editable && manualAccounts === 0 && !form && (
+          {editable && manualAccounts === 0 && connectedCount === 0 && !form && (
             <article className="ft-card bk-notice">
               <h3>Set up your accounts</h3>
               <p>
-                Add the balances you want to track: a nickname, an account type and the current balance. You update them by hand.
-                Nothing connects to a bank, and your numbers stay in this browser.
+                Add the balances you want to track: a nickname, an account type and the current balance. You update manual balances by hand,
+                and they are saved in this browser. You can also load read-only brokerage balances from SnapTrade below.
               </p>
               <div className="bk-actions">
                 <button className="ft-btn ft-btn-save" onClick={() => openForm({ kind: "add" })}>Add your first account</button>
@@ -205,12 +216,14 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
 
           {editable && !form && (
             <div className="bk-toolbar">
-              {manualAccounts > 0 && <button className="ft-btn" onClick={() => openForm({ kind: "add" })}>Add account</button>}
+              {(manualAccounts > 0 || connectedCount > 0) && (
+                <button className="ft-btn" onClick={() => openForm({ kind: "add" })}>{manualAccounts > 0 ? "Add account" : "Add a manual account"}</button>
+              )}
               <BackupPanel
                 status={backup}
                 setStatus={setBackup}
                 currentCount={manualAccounts}
-                currentNetWorthCents={summary.netWorthCents}
+                currentNetWorthCents={manualNetWorthCents}
                 onReplace={manual!.onReplaceAll}
                 onExport={() => {
                   manual!.onExport();
@@ -220,7 +233,15 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
             </div>
           )}
 
-          {(!isManual || (editable && manualAccounts > 0)) && (
+          {editable && !form && brokerage && <BrokeragePanel controls={brokerage} manual={manualList} />}
+
+          {editable && accounts.length > 0 && (
+            <p className="bk-note bk-sources">
+              Manual balances are typed by you and saved in this browser. Brokerage balances are read-only and come from SnapTrade.
+            </p>
+          )}
+
+          {(!isManual || (editable && accounts.length > 0)) && (
             <div className="ft-grid">
               {GROUPS.map((grp) => {
                 const list = accounts.filter((a) => a.kind === grp.kind);
@@ -242,12 +263,19 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
                             <span>
                               {a.name}
                               <small>
-                                {a.updatedAt
-                                  ? `${grp.kind === "debt" ? "Amount owed · " : ""}Updated ${fmtUpdated(a.updatedAt)}`
-                                  : a.institution}
+                                {a.source === "snaptrade"
+                                  ? `SnapTrade · ${a.institution} · ${a.asOf ? `Brokerage data as of ${fmtDateTime(a.asOf)}` : "Brokerage sync time unknown"} · Fetched ${fmtDateTime(a.fetchedAt ?? "")}${a.stale ? " · Stale" : ""}`
+                                  : a.updatedAt
+                                    ? `${isManual ? "Manual · " : ""}${grp.kind === "debt" ? "Amount owed · " : ""}Updated ${fmtUpdated(a.updatedAt)}${a.excluded ? " · Left out of net worth" : ""}`
+                                    : a.institution}
                                 {a.aprBasisPoints != null && ` · ${(a.aprBasisPoints / 100).toFixed(2)}% APR`}
                               </small>
-                              {editable && (
+                              {editable && a.source === "snaptrade" && brokerage && (
+                                <span className="bk-row-actions">
+                                  <button className="bk-link" aria-label={`Stop counting ${a.name}`} onClick={() => brokerage.onToggleInclude(a.id.replace(/^snaptrade:/, ""))}>Stop counting</button>
+                                </span>
+                              )}
+                              {editable && a.source !== "snaptrade" && (
                                 <span className="bk-row-actions">
                                   {confirmId === a.id ? (
                                     <>
@@ -267,12 +295,17 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
                                     <>
                                       <button className="bk-link" aria-label={`Edit ${a.name}`} onClick={() => openForm({ kind: "edit", id: a.id })}>Edit</button>
                                       <button className="bk-link" aria-label={`Delete ${a.name}`} onClick={() => setConfirmId(a.id)}>Delete</button>
+                                      {brokerage && (
+                                        <button className="bk-link" aria-pressed={!!a.excluded} onClick={() => brokerage.onToggleManualExcluded(a.id)}>
+                                          {a.excluded ? "Count in net worth" : "Leave out of net worth"}
+                                        </button>
+                                      )}
                                     </>
                                   )}
                                 </span>
                               )}
                             </span>
-                            <span className="amt">{formatCents(a.balanceCents)}</span>
+                            <span className={`amt${a.excluded ? " excl" : ""}`}>{formatCents(a.balanceCents)}</span>
                           </li>
                         ))}
                       </ul>
@@ -287,7 +320,9 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
             <article className="ft-card bk-notice">
               <h3>Transactions</h3>
               <p>
-                Transactions are not available yet. They will appear here once you enter them or connect an account.
+                {connectedCount > 0
+                  ? "Brokerage balances are connected, but transaction syncing is not implemented yet."
+                  : "Transactions are not available yet: transaction entry and syncing are not implemented."}{" "}
                 The activity shown in demo mode is sample data and is never mixed into your accounts.
               </p>
             </article>

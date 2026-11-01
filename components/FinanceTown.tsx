@@ -3,7 +3,15 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { TownBridge, type InteractableId } from "@/game/bridge";
-import { summarize } from "@/lib/finance";
+import { summarize, type Account } from "@/lib/finance";
+import {
+  BROKERAGE_PREFS_KEY,
+  brokerageToAccounts,
+  counted,
+  markManual,
+  parsePrefs,
+  toggleId,
+} from "@/lib/brokerage";
 import { createLocalStore } from "@/lib/localStore";
 import { formatCents } from "@/lib/money";
 import {
@@ -31,6 +39,8 @@ import {
 import { backupFilename, serializeBackup } from "@/lib/manualBackup";
 import { sampleAccounts, sampleTransactions, type Scenario } from "@/lib/sampleData";
 import { BankDashboard, type ManualControls } from "./BankDashboard";
+import type { BrokerageControls } from "./BrokeragePanel";
+import { useBrokerage } from "./useBrokerage";
 
 const TownGame = dynamic(() => import("./TownGame"), {
   ssr: false,
@@ -40,6 +50,8 @@ const TownGame = dynamic(() => import("./TownGame"), {
 // Each key is its own external store. Demo and My accounts never share a save.
 const modeStore = createLocalStore(MODE_STORAGE_KEY);
 const manualStore = createLocalStore(MANUAL_STORAGE_KEY);
+// Only ids and on/off choices live here (never balances). It is not part of manual backups.
+const prefsStore = createLocalStore(BROKERAGE_PREFS_KEY);
 const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
   demo: createLocalStore(MILESTONE_STORAGE_KEY),
   manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
@@ -61,19 +73,44 @@ export function FinanceTown() {
   const manualLoad = useMemo(() => loadManual(manualRaw), [manualRaw]);
   const [saveFailed, setSaveFailed] = useState(false);
 
+  const prefsRaw = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot, prefsStore.getServerSnapshot);
+  const prefs = useMemo(() => parsePrefs(prefsRaw), [prefsRaw]);
+  const brokerageClient = useBrokerage(mode === "manual");
+  const brokerageState = brokerageClient.state;
+
   // Active mode decides the accounts. Demo controls only ever touch the demo scenario.
-  const accounts = useMemo(
-    () => (mode === "demo" ? sampleAccounts(scenario) : manualLoad.status === "ok" ? toAccounts(manualLoad.state) : []),
-    [mode, scenario, manualLoad],
+  // My accounts = manual accounts (minus any the user left out) + brokerage accounts the user included.
+  const accounts = useMemo<Account[]>(
+    () =>
+      mode === "demo"
+        ? sampleAccounts(scenario)
+        : manualLoad.status === "ok"
+          ? [...markManual(toAccounts(manualLoad.state), prefs), ...brokerageToAccounts(brokerageState, prefs)]
+          : [],
+    [mode, scenario, manualLoad, prefs, brokerageState],
   );
-  const summary = useMemo(() => summarize(accounts), [accounts]);
+  const summary = useMemo(() => summarize(counted(accounts)), [accounts]);
+  // Included brokerage accounts whose balances are not loaded yet: net worth is incomplete, so do not move the home tier.
+  const brokeragePending = mode === "manual" && prefs.included.length > 0 && !brokerageState?.snapshot;
+
+  const brokerage = useMemo<BrokerageControls>(
+    () => ({
+      client: brokerageClient,
+      prefs,
+      pending: brokeragePending,
+      onToggleInclude: (id) => void prefsStore.write(JSON.stringify({ ...prefs, included: toggleId(prefs.included, id) })),
+      onToggleManualExcluded: (id) => void prefsStore.write(JSON.stringify({ ...prefs, excludedManual: toggleId(prefs.excludedManual, id) })),
+    }),
+    [brokerageClient, prefs, brokeragePending],
+  );
 
   // Saved milestones live in localStorage (one save per mode); read through an external-store hook so SSR stays stable.
   const milestoneStore = milestoneStores[mode];
   const raw = useSyncExternalStore(milestoneStore.subscribe, milestoneStore.getSnapshot, milestoneStore.getServerSnapshot);
   const stored = useMemo(() => loadMilestones({ getItem: () => raw || null }), [raw]);
   // Automatic milestone: pure derivation. The tier follows the active mode's net worth up and down.
-  const { state: milestones, upgraded, downgraded } = applyMilestones(stored, summary.netWorthCents);
+  const derived = applyMilestones(stored, summary.netWorthCents);
+  const { state: milestones, upgraded, downgraded } = brokeragePending ? { state: stored, upgraded: false, downgraded: false } : derived;
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -183,7 +220,7 @@ export function FinanceTown() {
       <header className="ft-bar">
         <h1>Finance Town</h1>
         <div className="ft-chip" title={mode === "demo" ? "Net worth from sample data" : "Net worth from your accounts"}>
-          <span className="ft-label">Net worth</span> <b>{formatCents(summary.netWorthCents)}</b>
+          <span className="ft-label">Net worth{brokeragePending ? " (partial)" : ""}</span> <b>{formatCents(summary.netWorthCents)}</b>
         </div>
         <div className="ft-chip">
           <span className="ft-label">Home</span> <b>{milestones.homeTier === 2 ? "Manor" : "Cottage"}</b>
@@ -228,7 +265,7 @@ export function FinanceTown() {
         <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>
 
-      {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} onClose={closeBank} />}
+      {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} onClose={closeBank} />}
     </main>
   );
 }

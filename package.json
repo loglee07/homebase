@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bash scripts/with-node24.sh next dev -p 3000",
+    "dev": "bash scripts/with-node24.sh next dev -H 127.0.0.1 -p 3000",
     "build": "bash scripts/with-node24.sh next build",
-    "start": "bash scripts/with-node24.sh next start",
+    "start": "bash scripts/with-node24.sh next start -H 127.0.0.1",
     "lint": "bash scripts/with-node24.sh eslint",
     "test": "bash scripts/with-node24.sh vitest run",
     "typecheck": "bash scripts/with-node24.sh tsc --noEmit",
     "dev:stop": "bash scripts/dev-stop.sh 3000",
+    "env:init": "bash scripts/env-init.sh",
     "install:locked": "bash scripts/with-node24.sh npm ci",
     "node:check": "bash scripts/with-node24.sh node -p \"process.version+' '+process.execPath\""
   },
@@ -17,7 +18,8 @@
     "next": "16.4.3",
     "phaser": "^4.2.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "snaptrade-typescript-sdk": "^13.1.14"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
