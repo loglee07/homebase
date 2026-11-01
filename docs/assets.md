@@ -37,7 +37,7 @@ Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view 
 
 | Sprite | Source size | Anchor | Collision footprint | Notes |
 |---|---|---|---|---|
-| Cottage (home tier 1) | 64x64 | bottom-center, x=112, y=128 | x80 y72 w64 h56 | Door bottom-center; chimney near (131, 66) for smoke |
+| Cottage (home tier 1) | done: custom `public/sprites/home_1.png` (64x72) | bottom-center, x=112, y=128 | x80 y72 w64 h56 | Chimney smoke near (129,60) |
 | Manor (home tier 2) | 96x80 | bottom-center, x=112, y=128 | x64 y56 w96 h72 | Clearly bigger and richer than the cottage; chimney near (89, 50); bush slots at (96,134) and (128,134) |
 | Bank | 96x80 | bottom-center, x=368, y=128 | x320 y56 w96 h72 | Door bottom-center; must read as a bank, distinct from the manor |
 | Fountain | 32x32, 2 frames | bottom-center, x=240, y=192 | x226 y174 w28 h18 | Frames swap every 450ms (water shimmer) |

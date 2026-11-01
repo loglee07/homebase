@@ -10,7 +10,7 @@ Personal desktop-browser dashboard as a cozy pixel-art town. Walk a character in
 - **Sample data only** (`lib/sampleData.ts`). Any future financial connection must be read-only. No real account connections yet.
 - Pixel art is procedural by default (`game/art.ts`, drawn to canvas textures). **No image assets are committed.** Optionally, the licensed Cute Fantasy Free pack (Kenmi, non-commercial, no redistribution) is loaded at runtime from the gitignored `public/licensed/cute-fantasy/`; without it the scene falls back to the procedural art. Never commit the pack or anything derived from it. Setup and the placeholder sprite list: `docs/assets.md`. World is 480x320 (16px tiles), scaled with `Phaser.Scale.FIT` + `pixelArt`.
 - React and Phaser talk only through `game/bridge.ts` (`TownBridge`). Phaser code must stay behind the `ssr: false` dynamic import (`components/TownGame.tsx`).
-- Milestones (`lib/milestones.ts`): net worth >= $100,000.00 upgrades home to tier 2. One-way, never downgraded. Persisted in `localStorage` key `finance-town:milestones:v1`, read via `useSyncExternalStore`. The demo scenario is intentionally NOT persisted.
+- Milestones (`lib/milestones.ts`): net worth >= $100,000.00 gives home tier 2; falling below reverts to tier 1 (two-way for now; was one-way). Persisted in `localStorage` key `finance-town:milestones:v1`, read via `useSyncExternalStore`. The demo scenario is intentionally NOT persisted.
 - Controls: WASD/arrows move, `E` interacts (Enter/Space deliberately unused: they would fight with focused buttons). Dashboard pauses the scene and releases key capture.
 
 ## Runtime

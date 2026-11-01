@@ -6,7 +6,7 @@
 - Bank dashboard (React modal): checking, savings, investments, debts, 10 recent transactions, net worth. Pauses the town while open. Quick-access **Bank** button in the top bar.
 - Integer-cent money model and net worth calculation.
 - Labeled **Demo control** toggles sample net worth ($71,264.57 vs $108,671.44).
-- Net worth >= $100,000 upgrades home (cottage -> manor) with sparkle + toast; persisted in localStorage; never downgraded.
+- Net worth >= $100,000 upgrades home (cottage -> manor) with sparkle + toast; persisted in localStorage; reverts to cottage if net worth falls back below $100,000.
 - Tests: `tests/finance.test.ts`, `tests/milestones.test.ts`.
 
 ## Limitations

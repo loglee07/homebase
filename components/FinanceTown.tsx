@@ -52,8 +52,8 @@ export function FinanceTown() {
   // Saved milestones live in localStorage; read through an external-store hook so SSR stays stable.
   const raw = useSyncExternalStore(subscribeMilestones, readRaw, () => "");
   const stored = useMemo(() => loadMilestones({ getItem: () => raw || null }), [raw]);
-  // Automatic milestone: pure derivation. Upgrades only; a later decrease never lowers the tier.
-  const { state: milestones, upgraded } = applyMilestones(stored, summary.netWorthCents);
+  // Automatic milestone: pure derivation. The tier follows net worth up and down.
+  const { state: milestones, upgraded, downgraded } = applyMilestones(stored, summary.netWorthCents);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -62,19 +62,19 @@ export function FinanceTown() {
   }, []);
 
   useEffect(() => {
-    if (upgraded) {
+    if (upgraded || downgraded) {
       saveMilestones(window.localStorage, milestones);
       notifyMilestones();
       // one-shot announcement of an external event (the milestone), not derived state
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      showToast("Net worth passed $100,000. Your home was upgraded!");
+      showToast(upgraded ? "Net worth passed $100,000. Your home was upgraded!" : "Net worth fell below $100,000. Your home is a cottage again.");
     }
     if (appliedTier.current !== milestones.homeTier) {
       // celebrate only for a live upgrade, not when restoring a saved one on load
       bridge.setHomeTier(milestones.homeTier, upgraded);
       appliedTier.current = milestones.homeTier;
     }
-  }, [upgraded, milestones, bridge, showToast]);
+  }, [upgraded, downgraded, milestones, bridge, showToast]);
 
   useEffect(() => {
     bridge.setPaused(bankOpen);

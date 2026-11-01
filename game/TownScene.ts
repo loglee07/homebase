@@ -37,6 +37,7 @@ export class TownScene extends Phaser.Scene {
 
   preload() {
     queueProbe(this);
+    this.load.image("custom_home_1", "/sprites/home_1.png");
   }
 
   create() {
@@ -56,6 +57,11 @@ export class TownScene extends Phaser.Scene {
   private build() {
     drawProps(this);
     drawBuildings(this);
+    // custom cottage sprite replaces the code-drawn placeholder (our own art, committed under public/sprites)
+    if (this.textures.exists("custom_home_1")) {
+      this.textures.remove("home_1");
+      this.textures.renameTexture("custom_home_1", "home_1");
+    }
     const solids: Rect[] = [];
     const blockedForFlowers = (x: number, y: number) =>
       (x > 56 && x < 168 && y > 40 && y < 150) || (x > 312 && x < 424 && y > 40 && y < 150) || (x > 216 && x < 264 && y > 150 && y < 200);
@@ -184,7 +190,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   private puff() {
-    const pos = this.tier === 2 ? { x: 89, y: 50 } : { x: 131, y: 66 };
+    const pos = this.tier === 2 ? { x: 89, y: 50 } : { x: 129, y: 60 };
     const p = this.add.image(pos.x, pos.y, "puff").setDepth(BUILDING_BASE_Y + 1).setAlpha(0.8);
     this.tweens.add({ targets: p, y: p.y - 22, x: p.x + 8, alpha: 0, scale: 1.8, duration: 2400, onComplete: () => p.destroy() });
   }

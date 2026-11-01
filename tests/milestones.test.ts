@@ -32,11 +32,16 @@ describe("home upgrade milestone", () => {
     expect(r.state).toEqual({ version: 1, homeTier: 2, homeUpgradedAt: at() });
   });
 
-  it("never downgrades after net worth drops", () => {
+  it("reverts to tier 1 when net worth drops below the threshold", () => {
     const up = applyMilestones(INITIAL_MILESTONES, T + 1, at).state;
-    const later = applyMilestones(up, 0, at);
+    const later = applyMilestones(up, T - 1, at);
     expect(later.upgraded).toBe(false);
-    expect(later.state.homeTier).toBe(2);
+    expect(later.downgraded).toBe(true);
+    expect(later.state).toEqual(INITIAL_MILESTONES);
+  });
+
+  it("does not report a downgrade when already tier 1", () => {
+    expect(applyMilestones(INITIAL_MILESTONES, 0, at).downgraded).toBe(false);
   });
 
   it("does not re-fire when already upgraded", () => {
@@ -52,8 +57,8 @@ describe("milestone persistence", () => {
     saveMilestones(store, up);
     const reloaded = loadMilestones(store);
     expect(reloaded.homeTier).toBe(2);
-    // net worth back below threshold after reload: still upgraded
-    expect(applyMilestones(reloaded, 1, at).state.homeTier).toBe(2);
+    // net worth back below threshold after reload: reverts
+    expect(applyMilestones(reloaded, 1, at).state.homeTier).toBe(1);
   });
 
   it("falls back to initial for missing, corrupt, or unknown data", () => {

@@ -17,18 +17,18 @@ type ReadableStorage = Pick<Storage, "getItem">;
 type WritableStorage = Pick<Storage, "setItem">;
 
 /**
- * Upgrades are one-way: net worth at or above the threshold sets tier 2;
- * a later decrease never lowers it.
+ * The home tier follows net worth: at or above the threshold it is tier 2, below it falls back to tier 1.
+ * (Prototype behavior; it used to be one-way.)
  */
 export function applyMilestones(
   state: MilestoneState,
   netWorthCents: Cents,
   now: () => string = () => new Date().toISOString(),
-): { state: MilestoneState; upgraded: boolean } {
-  if (state.homeTier >= 2 || netWorthCents < HOME_UPGRADE_THRESHOLD_CENTS) {
-    return { state, upgraded: false };
-  }
-  return { state: { ...state, homeTier: 2, homeUpgradedAt: now() }, upgraded: true };
+): { state: MilestoneState; upgraded: boolean; downgraded: boolean } {
+  const tier: HomeTier = netWorthCents >= HOME_UPGRADE_THRESHOLD_CENTS ? 2 : 1;
+  if (tier === state.homeTier) return { state, upgraded: false, downgraded: false };
+  if (tier === 2) return { state: { ...state, homeTier: 2, homeUpgradedAt: now() }, upgraded: true, downgraded: false };
+  return { state: { ...state, homeTier: 1, homeUpgradedAt: null }, upgraded: false, downgraded: true };
 }
 
 export function loadMilestones(storage: ReadableStorage | null | undefined): MilestoneState {
