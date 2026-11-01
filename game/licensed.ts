@@ -47,6 +47,10 @@ export function queueLicensed(scene: Phaser.Scene) {
   l.spritesheet(CF.player, url(SHEETS.player), { frameWidth: 32, frameHeight: 32 });
 }
 
+/** Our own cobblestone tile (public/sprites/cobble.png, 48x48, seamless); optional, dirt is used without it. */
+export const COBBLE = "custom_cobble";
+const COBBLE_SIZE = 48;
+
 export const probeLoaded = (scene: Phaser.Scene) => scene.textures.exists(CF.grass);
 export const licensedLoaded = (scene: Phaser.Scene) => Object.values(CF).every((k) => scene.textures.exists(k));
 
@@ -128,6 +132,37 @@ export function drawLicensedGround(scene: Phaser.Scene, blocked: (x: number, y: 
   const img = (key: string) => scene.textures.get(key).getSourceImage() as CanvasImageSource;
   const grass = img(CF.grass), path = img(CF.path), water = img(CF.water), decor = img(CF.decor);
   const rng = mulberry32(42);
+  const pixels = (src: CanvasImageSource, w: number, h: number) => {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const cx = c.getContext("2d")!;
+    cx.drawImage(src, 0, 0);
+    return cx.getImageData(0, 0, w, h).data;
+  };
+  // Path tiles keep the pack's bushy outline and shape; only their dirt-colored pixels become cobblestone.
+  const cobble = scene.textures.exists(COBBLE) ? pixels(img(COBBLE), COBBLE_SIZE, COBBLE_SIZE) : null;
+  const pathPx = cobble ? pixels(path, 48, 96) : null;
+  const nearDirt = (r: number, g: number, b: number) =>
+    [[228, 166, 114], [184, 111, 80]].some(([R, G, B]) => Math.abs(r - R) + Math.abs(g - G) + Math.abs(b - B) < 45);
+  const cobbleTile = (tc: number, tr: number, c: number, r: number) => {
+    const out = ctx.createImageData(TILE, TILE);
+    for (let py = 0; py < TILE; py++) {
+      for (let px = 0; px < TILE; px++) {
+        const si = ((tr * TILE + py) * 48 + tc * TILE + px) * 4;
+        const o = (py * TILE + px) * 4;
+        const useCobble = nearDirt(pathPx![si], pathPx![si + 1], pathPx![si + 2]);
+        const ci = ((((r * TILE + py) % COBBLE_SIZE) * COBBLE_SIZE) + ((c * TILE + px) % COBBLE_SIZE)) * 4;
+        const from = useCobble ? cobble! : pathPx!;
+        const fi = useCobble ? ci : si;
+        out.data[o] = from[fi];
+        out.data[o + 1] = from[fi + 1];
+        out.data[o + 2] = from[fi + 2];
+        out.data[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(out, c * TILE, r * TILE);
+  };
 
   const tile = (src: CanvasImageSource, tc: number, tr: number, c: number, r: number) =>
     ctx.drawImage(src, tc * TILE, tr * TILE, TILE, TILE, c * TILE, r * TILE, TILE, TILE);
@@ -136,8 +171,9 @@ export function drawLicensedGround(scene: Phaser.Scene, blocked: (x: number, y: 
     for (let c = 0; c < COLS; c++) {
       if (isPath(c, r)) {
         const [tc, tr] = blobTile(isPath, c, r);
-        // an occasional pebble tile on open path (sheet row 5)
-        if (tc === 1 && tr === 1 && rng() < 0.12) tile(path, Math.floor(rng() * 3), 5, c, r);
+        if (cobble) cobbleTile(tc, tr, c, r);
+        // an occasional pebble tile on open dirt path (sheet row 5)
+        else if (tc === 1 && tr === 1 && rng() < 0.12) tile(path, Math.floor(rng() * 3), 5, c, r);
         else tile(path, tc, tr, c, r);
       } else if (isWater(c, r)) {
         const [tc, tr] = blobTile(isWater, c, r);

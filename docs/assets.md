@@ -38,18 +38,18 @@ Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view 
 | Sprite | Source size | Anchor | Collision footprint | Notes |
 |---|---|---|---|---|
 | Cottage (home tier 1) | done: custom `public/sprites/home_1.png` (64x72) | bottom-center, x=112, y=128 | x80 y72 w64 h56 | Chimney smoke near (129,60) |
-| Manor (home tier 2) | 96x80 | bottom-center, x=112, y=128 | x64 y56 w96 h72 | Clearly bigger and richer than the cottage; chimney near (89, 50); bush slots at (96,134) and (128,134) |
-| Bank | 96x80 | bottom-center, x=368, y=128 | x320 y56 w96 h72 | Door bottom-center; must read as a bank, distinct from the manor |
+| Manor (home tier 2) | done: custom `public/sprites/home_2.png` (96x75) | bottom-center, x=112, y=128 | x64 y56 w96 h72 | Chimney smoke near (92,56); bush slots at (96,134) and (128,134) |
+| Bank | done: custom `public/sprites/bank.png` (96x75) | bottom-center, x=368, y=128 | x320 y56 w96 h72 | The "BANK" sign is not legible at this size; the coin is |
 | Fountain | 32x32, 2 frames | bottom-center, x=240, y=192 | x226 y174 w28 h18 | Frames swap every 450ms (water shimmer) |
 | Bench | 20x10 | bottom-center | w18 h5 | Used at (206,238), (274,238) |
 | Mailbox | 10x16 | bottom-center, (88,152) | x85 y148 w6 h4 | |
 | Blossom tree | 32x48 frame, same layout as `Oak_Tree_Small.png` frame 1 | trunk base | w8 h5 at trunk base | Currently shows a plain oak |
 | Autumn tree | 32x48 frame, same as above | trunk base | w8 h5 | Currently shows a plain oak |
-| Plaza paving (optional) | 16x16 tiles, 3x3 blob + inner corners like `Path_Tile.png` | tile grid | none | Plaza currently reuses the dirt path |
+| Path surface | done: custom `public/sprites/cobble.png` (48x48 seamless) | world-aligned tile | none | With the pack, path tiles keep the pack's bushy edges and only their dirt pixels become cobblestone (`drawLicensedGround`); without the pack the path stays dirt |
 | Spark / smoke puff (optional) | 7x7 / 6x6 | center | none | Effects only |
 
 Note on `home_1.png`: **temporary, high-detail asset.** It is nearest-sampled from AI-generated art (~7.6px blocks), so every pixel is a true source color with no blended edges, but it has ~2,700 colors versus the pack's roughly 10 per sprite. Its replacement should be designed natively for the existing 64x72 canvas (bottom-center anchor, same footprint) with a small palette. No further renderer changes or automatic palette reduction are planned.
 
-Status: the manor tier (home tier 2, code-drawn placeholder) is **unverified** after the cottage/manor assignment fix and the doorstep path change.
+Status: manor and bank sprites are likewise nearest-sampled from high-detail source art (same caveat as the cottage, to be replaced by native art). The manor tier was checked in the browser with the new sprite: door prompt reachable. Both door walks start under their building.
 
 Source dimensions for buildings keep today's layout, so no layout changes are needed. The pack's own house is 96x128 and was not used (wrong scale for this layout and not a bank).

@@ -44,5 +44,10 @@
 - The cottage is a temporary high-detail asset; replace with native 64x72 art (see `docs/assets.md`).
 - Manor tier not re-verified after these changes.
 
+## Bank, manor, cobblestone path (done)
+- Custom `bank.png` and `home_2.png` (96x75, nearest-sampled like the cottage) replace the code-drawn buildings; bank walk now starts under the building. Cobblestone tile (`cobble.png`) replaces dirt in pack mode. Home and bank door prompts verified by walking in the browser; manor tier now verified.
+- Custom sprites load with or without the pack (code-drawn art only if a file fails to load). The cobblestone path needs the pack's path tiles, so without the pack the path stays code-drawn dirt.
+- Bank sign text unreadable at 96px.
+
 ## Next milestone
 Second building with a real tool (e.g. a budget or goals hall) and a second milestone that changes the world; add a read-only data-source interface behind the sample data; add a Playwright smoke test for walk -> enter bank -> upgrade -> reload.
