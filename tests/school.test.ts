@@ -254,7 +254,7 @@ describe("nameplates", () => {
   it("anchor above each roof with a gap and follow the home tier", async () => {
     const { nameplatesFor } = await import("@/game/nameplates");
     const [c, m] = [nameplatesFor(1), nameplatesFor(2)];
-    expect(c.map((p) => p.id)).toEqual(["home", "bank", "school"]);
+    expect(c.map((p) => p.id)).toEqual(["home", "bank", "school", "kitchen"]);
     expect(c[0].roofY).toBeGreaterThan(m[0].roofY); // the manor is taller, so its plaque sits higher
     expect(c[1]).toEqual(m[1]);
   });

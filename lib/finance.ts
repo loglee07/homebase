@@ -15,9 +15,9 @@ export interface Account {
   updatedAt?: string;
   /** Where the balance came from. Missing means sample data. */
   source?: "manual" | "snaptrade" | "plaid";
-  /** Brokerage accounts only: when the brokerage last synced this balance (not when Finance Town fetched it). */
+  /** Brokerage accounts only: when the brokerage last synced this balance (not when Homebase fetched it). */
   asOf?: string;
-  /** Brokerage accounts only: when Finance Town last fetched the snapshot. */
+  /** Brokerage accounts only: when Homebase last fetched the snapshot. */
   fetchedAt?: string;
   /** Brokerage accounts only: the last refresh failed, so this is the previous snapshot. */
   stale?: boolean;

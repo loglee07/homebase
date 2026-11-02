@@ -10,23 +10,39 @@ const PALETTE: Record<string, string> = {
   b: "#4f7fb8", // blue
   y: "#e0a526", // brass
   r: "#b24a2e", // brick
+  d: "#9a5f0c", // deep gold (coin emblem)
 };
 
+/** A round coin: dark outline, lit rim (bright top-left, shaded bottom-right), a groove, and a $ stamped on the face. */
+function makeCoin(): string[] {
+  const N = 14;
+  const c = (N - 1) / 2;
+  const dollar = ["..d..", ".dddd", "d.d..", ".ddd.", "..d.d", "dddd.", "..d.."];
+  const rows: string[] = [];
+  for (let y = 0; y < N; y++) {
+    let row = "";
+    for (let x = 0; x < N; x++) {
+      const dx = x - c;
+      const dy = y - c;
+      const d = Math.hypot(dx, dy);
+      const lit = dx + dy < 0;
+      let ch = ".";
+      if (d <= 6.9) ch = "k";
+      if (d <= 6.0) ch = lit ? "h" : "s";
+      if (d <= 5.0) ch = "s";
+      if (d <= 4.4) ch = lit && dx + dy < -3 ? "h" : "g";
+      const gx = x - 4;
+      const gy = y - 3;
+      if (d <= 4.4 && gx >= 0 && gx < 5 && gy >= 0 && gy < 7 && dollar[gy][gx] === "d") ch = "d";
+      row += ch;
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
 const ICONS = {
-  coin: [
-    "...kkkkkk...",
-    "..khhhhggk..",
-    ".khhgggggsk.",
-    "khhggkkggssk",
-    "khgggkkgggsk",
-    "khgggkkgggsk",
-    "khgggkkgggsk",
-    "khgggkkgggsk",
-    "kggggkkggssk",
-    ".kgggggsssk.",
-    "..kksssskk..",
-    "....kkkk....",
-  ],
+  coin: makeCoin(),
   bank: [
     "....kkkk....",
     "..kkwwwwkk..",
@@ -69,6 +85,34 @@ const ICONS = {
     "............",
     "............",
   ],
+  calendar: [
+    "............",
+    ".kkkkkkkkkk.",
+    ".krrrrrrrrk.",
+    ".krrrrrrrrk.",
+    ".kkkkkkkkkk.",
+    ".kwwwwwwwwk.",
+    ".kwkwkwkwwk.",
+    ".kwwwwwwwwk.",
+    ".kwkwkwkwwk.",
+    ".kwwwwwwwwk.",
+    ".kkkkkkkkkk.",
+    "............",
+  ],
+  minus: [
+    "............",
+    "............",
+    "............",
+    "............",
+    "............",
+    "wwwwwwwwwwww",
+    "wwwwwwwwwwww",
+    "............",
+    "............",
+    "............",
+    "............",
+    "............",
+  ],
   chevron: [
     "............",
     "............",
@@ -88,7 +132,7 @@ const ICONS = {
 export type PixelIconName = keyof typeof ICONS;
 
 export function PixelIcon({ name, size = 24, className }: { name: PixelIconName; size?: number; className?: string }) {
-  const rows = ICONS[name];
+  const rows: readonly string[] = ICONS[name];
   const rects: React.ReactNode[] = [];
   rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
@@ -97,7 +141,7 @@ export function PixelIcon({ name, size = 24, className }: { name: PixelIconName;
     }
   });
   return (
-    <svg className={className} width={size} height={size} viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true" focusable="false">
+    <svg className={className} width={size} height={size} viewBox={`0 0 ${rows[0].length} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true" focusable="false">
       {rects}
     </svg>
   );

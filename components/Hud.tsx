@@ -10,7 +10,7 @@ export interface HudProps {
   /** Already formatted by formatCents (integer cents -> "$1,234.56"). */
   netWorthText: string;
   /** Included connected balances are not all loaded, so the total is incomplete. */
-  partial: boolean;
+  pending: boolean;
   homeTier: 1 | 2;
   mode: Mode;
   onMode: (m: Mode) => void;
@@ -91,13 +91,13 @@ function DataMenu({ mode, onMode, scenario, onScenario }: Pick<HudProps, "mode" 
 
 /** The town's HUD: wooden title plaque, menu buttons, coin counter, data menu and the one global Lock. */
 export function Hud(p: HudProps) {
-  const loading = p.partial && p.access !== "locked";
-  const counterLabel = p.partial
-    ? `Net worth in USD, incomplete: ${loading ? "connected balances are still loading" : "connected balances are locked"}. ${p.netWorthText} so far`
+  const loading = p.pending && p.access !== "locked";
+  const counterLabel = p.pending
+    ? `Net worth in USD, not final: ${loading ? "connected balances are still loading" : "connected balances are locked"}. ${p.netWorthText} so far`
     : `Net worth in USD: ${p.netWorthText}`;
   return (
     <header className="hud">
-      <h1 className="hud-title">Finance Town</h1>
+      <h1 className="hud-title">Homebase</h1>
 
       <nav className="hud-nav" aria-label="Town buildings">
         <button className="hud-btn" onClick={p.onBank} disabled={p.dialogOpen}>
@@ -110,14 +110,14 @@ export function Hud(p: HudProps) {
         </button>
       </nav>
 
-      <div className={`hud-counter${p.partial ? " hud-counter-partial" : ""}`} role="group" aria-label={counterLabel} title="Net worth in USD">
+      <div className={`hud-counter${p.pending ? " hud-counter-pending" : ""}`} role="group" aria-label={counterLabel} title="Net worth in USD">
         <PixelIcon name="coin" size={26} />
         <span className="hud-amount" aria-hidden="true">
           {p.netWorthText}
         </span>
-        {p.partial && (
-          <span className="hud-tag hud-tag-partial" aria-hidden="true">
-            {loading ? "Loading" : "Partial"}
+        {p.pending && (
+          <span className="hud-tag hud-tag-pending" aria-hidden="true">
+            {loading ? "Loading" : "Locked"}
           </span>
         )}
         {p.mode === "demo" && (

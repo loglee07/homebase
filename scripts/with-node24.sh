@@ -7,7 +7,7 @@ for dir in "$(brew --prefix node@24 2>/dev/null || true)/bin" /opt/homebrew/opt/
 done
 major="$(node -p 'process.versions.node.split(".")[0]')"
 if [ "$major" != "24" ]; then
-  echo "Finance Town needs Node 24 (found $(node -v) at $(command -v node)). Run: brew install node@24" >&2
+  echo "Homebase needs Node 24 (found $(node -v) at $(command -v node)). Run: brew install node@24" >&2
   exit 1
 fi
 exec "$@"

@@ -66,7 +66,7 @@ export interface SchoolState {
   school: SchoolId;
   configured: boolean;
   events: SchoolEvent[];
-  /** When Finance Town last fetched this feed successfully (ISO). */
+  /** When Homebase last fetched this feed successfully (ISO). */
   updatedAt: string | null;
   /** The last refresh failed or the data is old: events are the last successful ones. */
   stale: boolean;

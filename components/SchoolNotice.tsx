@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createLocalStore } from "@/lib/localStore";
+import { PixelIcon } from "./PixelIcon";
 import { SCHOOL_LABEL, addDays, localDayKey, noticeKind, startDay, timeLabel, type NoticeInput, type SchoolEvent } from "@/lib/school";
 
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -12,10 +14,23 @@ function when(e: SchoolEvent, today: string): string {
   return `${dayText}, ${timeLabel(e, fmtTime)}`;
 }
 
+// Per-viewer convenience only: whether the notice is minimized to its badge. Holds no calendar data.
+const minimizedStore = createLocalStore("finance-town:notice-minimized:v1");
+
+/** Badge face: the item count when there is one, otherwise a short mark for why there is none. */
+function badgeMark(kind: string, count: number | undefined): string {
+  if (kind === "ok") return String(count ?? 0);
+  if (kind === "locked" || kind === "off") return "";
+  if (kind === "unavailable" || kind === "load_failed") return "!";
+  if (kind === "none" || kind === "not_loaded") return "–";
+  return "…";
+}
+
 /**
- * Town screen summary of the calendars already in memory. It never fetches, and shows no calendar data while locked.
- * Counts are calendar items; submission status is unknown, so it never says "due" or "unfinished". Every reason there is
- * no count has its own message (see noticeKind), so "No calendars set up" appears only when no feed link is configured.
+ * Town screen summary of the calendars already in memory, top-right of the game area. It never fetches (hovering,
+ * pinning and minimizing only change what is shown), and shows no calendar data while locked. Counts are calendar items;
+ * submission status is unknown, so it never says "due" or "unfinished". Every reason there is no count has its own message
+ * (see noticeKind). Minimized, it is a small badge: hover previews it, click or Enter/Space pins it open.
  */
 export function SchoolNotice({ input, onOpen }: { input: NoticeInput; onOpen: () => void }) {
   // The clock is read after mount (not during prerender) and re-read each minute so "next" moves on and the day rolls over.
@@ -28,6 +43,19 @@ export function SchoolNotice({ input, onOpen }: { input: NoticeInput; onOpen: ()
       clearInterval(t);
     };
   }, []);
+
+  const minimized = useSyncExternalStore(minimizedStore.subscribe, minimizedStore.getSnapshot, minimizedStore.getServerSnapshot) === "1";
+  const [hover, setHover] = useState(false);
+  const badgeRef = useRef<HTMLButtonElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const moveFocus = useRef<"badge" | "toggle" | null>(null);
+  useEffect(() => {
+    // Keyboard users keep their place when the control they used is replaced by its counterpart.
+    if (moveFocus.current === "toggle") toggleRef.current?.focus();
+    else if (moveFocus.current === "badge") badgeRef.current?.focus();
+    moveFocus.current = null;
+  }, [minimized]);
+
   const { states, access, loaded, loadFailed, busy } = input;
   const resolved = useMemo(() => (now ? noticeKind({ states, access, loaded, loadFailed, busy }, now) : null), [states, access, loaded, loadFailed, busy, now]);
   if (!now || !resolved) return null;
@@ -54,14 +82,68 @@ export function SchoolNotice({ input, onOpen }: { input: NoticeInput; onOpen: ()
     [line, sub] = text[kind as Exclude<typeof kind, "ok">];
   }
   const tag = notice && (kind === "ok" ? notice.stale : kind === "unavailable") ? (kind === "ok" ? "stale" : "failed") : null;
+  const tagNote = tag ? (tag === "stale" ? " Some data is stale." : " The last load failed.") : "";
+  const busyNow = kind === "loading" || kind === "refreshing" || kind === "checking";
+  const mark = badgeMark(kind, notice?.count);
+
+  const pin = () => {
+    moveFocus.current = "toggle";
+    minimizedStore.write("0");
+    minimizedStore.notify();
+    setHover(false);
+  };
+  const minimize = () => {
+    moveFocus.current = "badge";
+    minimizedStore.write("1");
+    minimizedStore.notify();
+  };
+
+  // Hover previews only for a mouse; on touch the tap (click) pins it open instead.
+  const preview = minimized && hover;
+  const open = !minimized || preview;
   return (
-    <button className="ft-notice" onClick={onOpen} aria-busy={kind === "loading" || kind === "refreshing" || kind === "checking"} aria-label={`School calendar. ${line}. ${sub}.${tag ? ` ${tag === "stale" ? "Some data is stale." : "Last load failed."}` : ""} Opens School.`}>
-      <span aria-hidden>🎓</span>
-      <span className="ft-notice-text">
-        <b>{line}</b>
-        <small>{sub}</small>
-      </span>
-      {tag && <span className="ft-notice-stale">{tag}</span>}
-    </button>
+    <div
+      className={`ft-notice${open ? " ft-notice-open" : ""}`}
+      onPointerEnter={(e) => e.pointerType === "mouse" && minimized && setHover(true)}
+      onPointerLeave={(e) => e.pointerType === "mouse" && setHover(false)}
+    >
+      {open ? (
+        <section className="ft-notice-panel" aria-label="School calendar" aria-busy={busyNow}>
+          <div className="ft-notice-head">
+            <PixelIcon name="calendar" size={22} />
+            <span className="ft-notice-text" role="status">
+              <b>{line}</b>
+              <small>{sub}</small>
+            </span>
+            {tag && <span className="ft-notice-stale">{tag}</span>}
+            {minimized ? (
+              <button ref={toggleRef} className="ft-notice-ico" onClick={pin} aria-label="Pin the calendar notice open" title="Pin open">
+                <PixelIcon name="chevron" size={16} />
+              </button>
+            ) : (
+              <button ref={toggleRef} className="ft-notice-ico" onClick={minimize} aria-label="Minimize the calendar notice" title="Minimize">
+                <PixelIcon name="minus" size={16} />
+              </button>
+            )}
+          </div>
+          <button className="ft-notice-open-school" onClick={onOpen}>
+            Open School
+          </button>
+        </section>
+      ) : (
+        <button
+          ref={badgeRef}
+          className="ft-notice-badge"
+          onClick={pin}
+          aria-expanded={false}
+          aria-label={`School calendar. ${line}.${tagNote} Activate to pin the notice open.`}
+          title={line}
+        >
+          <PixelIcon name="calendar" size={22} />
+          {mark ? <span className="ft-notice-count">{mark}</span> : <PixelIcon name="lock" size={16} />}
+          {tag && <span className="ft-notice-dot" aria-hidden="true" />}
+        </button>
+      )}
+    </div>
   );
 }

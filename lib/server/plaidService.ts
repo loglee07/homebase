@@ -1,7 +1,8 @@
 // Plaid link, exchange and balance logic, with the Plaid API and the token vault injected so it can be tested with
 // fakes. READ-ONLY: Link is created with the Transactions product only (Balance is never listed in products), restricted
-// to checking and savings. No Auth, Identity, Transfer, Signal or payment products, and no transaction reads here.
+// to checking and savings. No Auth, Identity, Transfer, Signal or payment products. Transaction history is read only in plaidActivity.ts.
 import type { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
+import type { RawSyncPage } from "../bankActivity";
 import { BLUPEAK_INSTITUTION_ID, BLUPEAK_NAME, type BankErrorCode, type PlaidEnvironment, type RawPlaidAccount, type VaultStatus } from "../plaid";
 import type { TokenVault } from "./vault";
 
@@ -51,6 +52,8 @@ export interface PlaidApiLike {
   itemRemove(req: { access_token: string }): Promise<unknown>;
   institutionsGetById(req: { institution_id: string; country_codes: CountryCode[] }): Promise<{ data: { institution: { institution_id: string; name: string; products: string[] } } }>;
   accountsBalanceGet(req: { access_token: string }): Promise<{ data: { accounts: RawPlaidAccount[] } }>;
+  /** Read-only transaction history, used only by plaidActivity.ts. */
+  transactionsSync(req: { access_token: string; cursor?: string; count?: number }): Promise<{ data: RawSyncPage }>;
 }
 
 export interface PlaidServiceOptions {
@@ -131,7 +134,7 @@ export function createPlaidService(opts: PlaidServiceOptions) {
         if (reconnect && stored.status !== "ok") throw new PlaidServiceError("not_linked");
         if (!reconnect && stored.status === "ok") throw new PlaidServiceError("already_linked");
         await verifyCoverage();
-        const base = { client_name: "Finance Town", language: "en", country_codes: [US], user: { client_user_id: opts.clientUserId } };
+        const base = { client_name: "Homebase", language: "en", country_codes: [US], user: { client_user_id: opts.clientUserId } };
         const req: LinkTokenCreateRequest =
           reconnect && stored.status === "ok"
             ? { ...base, access_token: stored.item.accessToken } // update mode: no products

@@ -1,6 +1,7 @@
 // Synthetic Plaid API for tests and local demos: no real balances, never contacts Plaid, never touches the real token file.
 import type { RawPlaidAccount } from "../plaid";
 import { BLUPEAK_INSTITUTION_ID } from "../plaid";
+import type { RawPlaidTxn, RawSyncPage } from "../bankActivity";
 import type { PlaidApiLike } from "./plaidService";
 
 const acct = (id: string, name: string, subtype: string, current: number | null, available: number | null, currency: string | null = "USD", type = "depository"): RawPlaidAccount => ({
@@ -19,6 +20,18 @@ export const FIXTURE_BANK_ACCOUNTS: RawPlaidAccount[] = [
   acct("bk-5", "Synthetic foreign", "savings", 300, 300, "CAD"),
   acct("bk-6", "Synthetic money market", "money market", 800, 800),
 ];
+
+const tx = (id: string, account: string, date: string, amount: number, name: string, pending = false, pendingId: string | null = null): RawPlaidTxn => ({
+  transaction_id: id, account_id: account, date, amount, name, pending, pending_transaction_id: pendingId, iso_currency_code: "USD", unofficial_currency_code: null,
+});
+const page = (p: Partial<RawSyncPage>, cursor: string, more = false): RawSyncPage => ({ added: [], modified: [], removed: [], next_cursor: cursor, has_more: more, transactions_update_status: "HISTORICAL_UPDATE_COMPLETE", ...p });
+
+/** A scripted history: two pages first, then a pending-to-posted replacement, a modification and a removal. */
+export const FIXTURE_PAGES: Record<string, RawSyncPage> = {
+  "": page({ added: [tx("t1", "bk-1", "2026-10-28", 12.5, "Synthetic coffee"), tx("t2", "bk-1", "2026-10-29", -2000, "Synthetic payroll"), tx("t3", "bk-2", "2026-10-30", -15.25, "Synthetic interest")] }, "c1", true),
+  c1: page({ added: [tx("t4", "bk-1", "2026-10-31", 64.1, "Synthetic grocery", true), tx("t5", "bk-1", "2026-10-27", 9.99, "Synthetic refund test")] }, "c2"),
+  c2: page({ added: [tx("t4b", "bk-1", "2026-10-31", 64.1, "Synthetic grocery", false, "t4")], modified: [tx("t1", "bk-1", "2026-10-28", 13.5, "Synthetic coffee")], removed: [{ transaction_id: "t5" }] }, "c3"),
+};
 
 /** failAfterFirst: balance loads fail after the first success, to exercise the stale path. */
 export function createFixtureBankApi(opts: { failAfterFirst?: boolean; institutionId?: string } = {}): PlaidApiLike {
@@ -40,6 +53,10 @@ export function createFixtureBankApi(opts: { failAfterFirst?: boolean; instituti
     },
     async institutionsGetById(req) {
       return { data: { institution: { institution_id: req.institution_id, name: "BluPeak Credit Union (synthetic)", products: ["transactions", "auth"] } } };
+    },
+    async transactionsSync(req) {
+      const p = FIXTURE_PAGES[req.cursor ?? ""];
+      return { data: p ? structuredClone(p) : page({}, req.cursor ?? "") };
     },
     async accountsBalanceGet() {
       balanceCalls += 1;

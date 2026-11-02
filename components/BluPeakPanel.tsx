@@ -131,7 +131,7 @@ export function BluPeakPanel({ controls, manual }: Props) {
 
       {vault === "empty" && !launch && (
         <p className="bk-note">
-          Read-only balances through Plaid. You sign in to BluPeak inside Plaid&apos;s own window; Finance Town never sees your bank password. It cannot move money.
+          Read-only balances through Plaid. You sign in to BluPeak inside Plaid&apos;s own window; Homebase never sees your bank password. It cannot move money.
         </p>
       )}
       {vault === "unreadable" && (
@@ -151,7 +151,7 @@ export function BluPeakPanel({ controls, manual }: Props) {
       {snapshot && (
         <>
           <p className="bk-note">
-            Fetched by Finance Town {fmtDateTime(snapshot.fetchedAt)} from Plaid. Net worth uses the <strong>current</strong> balance; the available balance (which already subtracts pending items) is shown for reference only.
+            Fetched by Homebase {fmtDateTime(snapshot.fetchedAt)} from Plaid. Net worth uses the <strong>current</strong> balance; the available balance (which already subtracts pending items) is shown for reference only.
           </p>
           {!sandbox && <p className="bk-note">Already track a BluPeak account by hand? After you include its connected twin, leave the manual one out of net worth so it is not counted twice.</p>}
           <ul className="bk-brokers">

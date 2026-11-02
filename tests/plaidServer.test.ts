@@ -85,6 +85,7 @@ function fake(over: Partial<PlaidApiLike> = {}) {
     itemRemove: async (r) => (calls.push("itemRemove"), base.itemRemove(r)),
     institutionsGetById: async (r) => (calls.push("institutionsGetById"), base.institutionsGetById(r)),
     accountsBalanceGet: async (r) => (calls.push("balance"), base.accountsBalanceGet(r)),
+    transactionsSync: async (r) => (calls.push("transactionsSync"), base.transactionsSync(r)),
     ...over,
   };
   return { api, calls, tokens };
@@ -430,20 +431,23 @@ const walk = (d: string): string[] =>
   });
 
 describe("static boundaries", () => {
-  it("the real Plaid client exposes exactly the six allowed calls", () => {
+  it("the real Plaid client exposes exactly the seven allowed calls", () => {
     const src = read("lib/server/plaid.ts").replace(/^\s*\/\/.*$/gm, "");
     const calls = [...src.matchAll(/api\.(\w+)\(/g)].map((m) => m[1]);
-    expect(calls.sort()).toEqual(["accountsBalanceGet", "institutionsGetById", "itemGet", "itemPublicTokenExchange", "itemRemove", "linkTokenCreate"]);
+    expect(calls.sort()).toEqual(["accountsBalanceGet", "institutionsGetById", "itemGet", "itemPublicTokenExchange", "itemRemove", "linkTokenCreate", "transactionsSync"]);
     const service = read("lib/server/plaidService.ts").replace(/^\s*\/\/.*$/gm, "");
-    expect(service).not.toMatch(/transactionsSync|transactionsGet|authGet|identityGet|transfer|paymentInitiation|signalEvaluate|accountsGet\b|linkTokenCreate\(\{[^}]*products:\s*\[[^\]]*(auth|identity|balance)/i);
+    expect(service).not.toMatch(/api\.transactionsSync|transactionsGet|authGet|identityGet|transfer|paymentInitiation|signalEvaluate|accountsGet\b|linkTokenCreate\(\{[^}]*products:\s*\[[^\]]*(auth|identity|balance)/i);
+    const activity = read("lib/server/plaidActivity.ts").replace(/^\s*\/\/.*$/gm, "");
+    expect([...activity.matchAll(/api\.(\w+)\(/g)].map((m) => m[1])).toEqual(["transactionsSync"]);
+    expect(activity).not.toMatch(/transactionsGet|authGet|identityGet|transfer|paymentInitiation|signalEvaluate|accountsGet\b/i);
     expect(service.match(/products:\s*\[([^\]]*)\]/g)).toEqual(["products: [TRANSACTIONS]"]);
   });
   it("every bank route runs the guard with a session before doing anything", () => {
-    for (const r of ["state", "link-token", "exchange", "refresh", "reconnected"]) {
+    for (const r of ["state", "link-token", "exchange", "refresh", "reconnected", "activity", "activity/sync"]) {
       const src = read(`app/api/brokerage/bank/${r}/route.ts`);
       expect(src, r).toContain("session: true");
       expect(src.indexOf("guard(req"), r).toBeLessThan(src.search(/getBank\(\)/));
-      if (r !== "state") expect(src, r).toContain("mutating: true");
+      if (r !== "state" && r !== "activity") expect(src, r).toContain("mutating: true");
     }
   });
   it("the Plaid SDK, secrets, token vault and server modules stay out of browser code", () => {

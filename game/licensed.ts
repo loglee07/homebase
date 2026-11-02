@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { COLS, ROWS, TILE, WORLD_H, WORLD_W, isPath, isWater } from "./layout";
+import { COLS, ROWS, TILE, WORLD_H, WORLD_W, flowerSpots, isPath, isWater } from "./layout";
 import { mulberry32 } from "./pixel";
 
 /**
@@ -135,7 +135,7 @@ export function drawLicensedFill(scene: Phaser.Scene) {
   tex.refresh();
 }
 
-export function drawLicensedGround(scene: Phaser.Scene, blocked: (x: number, y: number) => boolean) {
+export function drawLicensedGround(scene: Phaser.Scene) {
   if (scene.textures.exists("ground")) scene.textures.remove("ground");
   const tex = scene.textures.createCanvas("ground", WORLD_W, WORLD_H);
   if (!tex) throw new Error("could not create ground texture");
@@ -196,14 +196,10 @@ export function drawLicensedGround(scene: Phaser.Scene, blocked: (x: number, y: 
     }
   }
 
-  // loose grass tufts and flowers on open grass
+  // flowers and tufts in patches by the doors, pond and trail
   const spots: DecorName[] = ["tuft", "tuftSmall", "flowerWhite", "flowerYellow", "flowerPink", "flowerGold", "tuft"];
-  for (let i = 0; i < 90; i++) {
-    const x = 12 + Math.floor(rng() * (WORLD_W - 24));
-    const y = 28 + Math.floor(rng() * (WORLD_H - 40));
-    const name = spots[Math.floor(rng() * spots.length)];
-    if (isPath(Math.floor(x / TILE), Math.floor(y / TILE)) || isWater(Math.floor(x / TILE), Math.floor(y / TILE)) || blocked(x, y)) continue;
-    const [sx, sy, w, h] = DECOR[name];
+  for (const { x, y, roll } of flowerSpots()) {
+    const [sx, sy, w, h] = DECOR[spots[Math.floor(roll * spots.length)]];
     ctx.drawImage(decor, sx, sy, w, h, x - (w >> 1), y - h, w, h);
   }
   tex.refresh();

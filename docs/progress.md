@@ -36,7 +36,7 @@
 ## Licensed art integration (done, local only)
 - Cute Fantasy Free (Kenmi) loaded at runtime from gitignored `public/licensed/cute-fantasy/`; procedural art is the fallback. See `docs/assets.md`.
 - Pack used for: autotiled grass/path/pond, flowers and tufts, oak trees, lamps, rocks, flower bushes, fences, player. Pond is now tile-aligned in pack mode (`isWater`, `waterBlocks`).
-- Still placeholders: cottage, manor, bank, fountain, bench, mailbox, blossom/autumn trees (list with sizes/anchors in `docs/assets.md`).
+- Still placeholders: cottage, manor, bank, mailbox, blossom/autumn trees (list with sizes/anchors in `docs/assets.md`).
 - Checked: no licensed files tracked or in git history; remote `origin/main` is only the initial commit. Verified in the browser with and without the pack folder; no new automated tests.
 
 ## Cottage rendering and doorstep (done)
@@ -128,3 +128,15 @@ Second building with a real tool (e.g. a budget or goals hall) and a second mile
 
 ## Session idle timeout
 - 30 minute inactivity limit beside the 8 hour absolute limit, tracked on the server (`checkSession`/`touchSession` in `lib/server/session.ts`, `POST /api/brokerage/activity`). Details and the refresh-vs-restart finding are in `docs/brokerage.md` (Session timeouts and restarts). Verified with controlled-clock unit tests and, on the fixture server with a 12 second idle window, in the browser: polling and reloads do not extend it, activity does, the 8 hour limit does not move, and a lock in one tab locks the other.
+
+## Auto-load of net worth
+- Included connected balances load automatically after unlock (see `docs/brokerage.md`, Auto-load), replacing the visit to the Bank to press Load. Verified on the fixture server: restart, unlock from School, counter completes with one refresh call, and a lock/unlock cycle does not refetch.
+
+- Town calendar notice: top-right of the game area under the header; minimize button collapses it to a calendar badge with today's count (preference in `finance-town:notice-minimized:v1`, no calendar data). Hover previews, click/Enter/Space/tap pins open. "Open School" is separate. Never fetches. The controls hint line was removed.
+- Landscaping pass: uneven tree clusters with clearings, an irregular tile-authored pond (`POND_ROWS`), a rounded octagon plaza (`PLAZA_ROWS`), benches/lamps on the plaza edge, flowers and bushes grouped by doors (`FLOWER_PATCHES`). `tests/layout.test.ts` flood-fills the walkable map from the spawn.
+- Bench (30x16) and fountain (35x34, static, no water animation) are our own sprites in `public/sprites/` (binary alpha, trimmed, nearest-neighbor resized). Collision: bench 26x6 at its base, fountain 32x17 (`FOUNTAIN_BLOCK`).
+- Hitboxes: buildings block only their 24px wall base (walk behind the roof), fountain blocks its whole basin (36x25), water collision is inset 5px on land-facing edges.
+- Fountain water animates: 4 frames (`fountain_0..3.png`, shimmer and a rippling jet) cycled every 180ms.
+- Map redone after a reference image: school top-centre, home west, bank east, a Kitchen placeholder south-east (the bank's shape with an orange tile roof, `public/sprites/kitchen.png`; its door shows a "coming soon" toast, it will track meals and macros later), a round plaza with six lamps, a pond south-west, a dense forest thinning into a meadow (`MEADOW` in `game/layout.ts`), flower beds and bushes by doors and around the plaza. Each building now has its own base y (`*_BASE_Y`).
+- Paths redone: circular plaza (radius 4.4 tiles) around the fountain, straight 2-wide walks to each door, a kitchen walk ending in a landing at its door. Tree canopies are kept off every path, the plaza and the doors (tested).
+- Shadows (`game/shadows.ts`): one upper-left light; flat translucent ground shadows under buildings (slab + right-side strip), trees (except the pack's shaded oak, which bakes its own), benches, lamps, mailbox, fountain and the code-drawn player. All sit at depth 0.5, under every object.

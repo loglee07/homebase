@@ -8,6 +8,7 @@ import type { ManualAccount, ManualLoad, Mode, ValidAccount } from "@/lib/manual
 import { AccountForm } from "./AccountForm";
 import { BackupPanel, type BackupStatus } from "./BackupPanel";
 import { NetWorthHistory, type HistoryControls } from "./NetWorthHistory";
+import { BankActivity } from "./BankActivity";
 import { BluPeakPanel } from "./BluPeakPanel";
 import { BrokeragePanel, fmtDateTime, type BrokerageControls } from "./BrokeragePanel";
 import type { BackupPreview } from "@/lib/manualBackup";
@@ -323,7 +324,9 @@ export function BankDashboard({ mode, accounts, summary, transactions, homeTier,
 
           {isManual && history && <NetWorthHistory controls={history} />}
 
-          {isManual ? (
+          {isManual && brokerage && brokerage.bank.info && brokerage.bank.info.provider !== "none" && brokerage.bank.state?.vault === "linked" ? (
+            <BankActivity bank={brokerage.bank} accounts={brokerage.bank.state.snapshot?.accounts ?? []} />
+          ) : isManual ? (
             <article className="ft-card bk-notice">
               <h3>Transactions</h3>
               <p>

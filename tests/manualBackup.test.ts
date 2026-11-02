@@ -66,10 +66,10 @@ describe("backup rejection", () => {
   it("rejects malformed or wrongly-shaped files", () => {
     rejects("", /not valid JSON/);
     rejects("{nope", /not valid JSON/);
-    rejects("null", /not a Finance Town/);
-    rejects("[]", /not a Finance Town/);
-    rejects(JSON.stringify({ version: 1, accounts: [] }), /not a Finance Town/);
-    rejects(JSON.stringify({ format: "other", version: 1, accounts: [] }), /not a Finance Town/);
+    rejects("null", /not a Homebase/);
+    rejects("[]", /not a Homebase/);
+    rejects(JSON.stringify({ version: 1, accounts: [] }), /not a Homebase/);
+    rejects(JSON.stringify({ format: "other", version: 1, accounts: [] }), /not a Homebase/);
     rejects(file({ not: "a list" }), /list is missing/);
   });
 

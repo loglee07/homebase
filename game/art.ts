@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 import { makeTexture, mulberry32, type Painter } from "./pixel";
-import { COLS, FOUNTAIN, ROWS, TILE, POND, WORLD_H, WORLD_W, inPond, isPath, isPlaza, BUSHES, type TreeKind } from "./layout";
+import { COLS, FOUNTAIN, ROWS, TILE, POND, POND_SPOTS, WORLD_H, WORLD_W, inPond, isPath, isPlaza, flowerSpots, BUSHES, type TreeKind } from "./layout";
 
 const OUT = "#3a2a1f";
 const WOOD = "#7a4a24";
@@ -11,7 +11,7 @@ const GLASS = "#8fd0f0";
 const GRASS = ["#6dbb4a", "#66b445", "#72c14f"];
 const SAND = ["#e0c28f", "#d9ba85", "#e5c997"];
 
-export function drawGround(scene: Phaser.Scene, blocked: (x: number, y: number) => boolean) {
+export function drawGround(scene: Phaser.Scene) {
   const rng = mulberry32(42);
   makeTexture(scene, "ground", WORLD_W, WORLD_H, (g) => {
     for (let r = 0; r < ROWS; r++) {
@@ -32,13 +32,10 @@ export function drawGround(scene: Phaser.Scene, blocked: (x: number, y: number) 
       }
     }
     drawPond(g);
-    // flowers on open grass
+    // flowers in patches by the doors, pond and trail
     const colors = ["#ffffff", "#ff9ec4", "#ffd84a", "#9ec9ff", "#ff7b6b"];
-    for (let i = 0; i < 110; i++) {
-      const x = 12 + Math.floor(rng() * (WORLD_W - 24));
-      const y = 28 + Math.floor(rng() * (WORLD_H - 40));
-      if (isPath(Math.floor(x / TILE), Math.floor(y / TILE)) || inPond(x, y) || blocked(x, y)) continue;
-      const col = colors[Math.floor(rng() * colors.length)];
+    for (const { x, y, roll } of flowerSpots()) {
+      const col = colors[Math.floor(roll * colors.length)];
       g.p(x, y, col);
       g.p(x + 1, y + 1, col);
       g.p(x + 1, y, "#ffd84a");
@@ -90,8 +87,8 @@ function drawPathTile(g: Painter, c: number, r: number, x: number, y: number, rn
 }
 
 function drawPond(g: Painter) {
-  for (let y = POND.cy - POND.ry - 2; y <= POND.cy + POND.ry + 2; y++) {
-    for (let x = POND.cx - POND.rx - 2; x <= POND.cx + POND.rx + 2; x++) {
+  for (let y = POND.y0 - 2; y <= POND.y1 + 2; y++) {
+    for (let x = POND.x0 - 2; x <= POND.x1 + 2; x++) {
       if (!inPond(x, y)) continue;
       const edge = !inPond(x - 1, y) || !inPond(x + 1, y) || !inPond(x, y - 1) || !inPond(x, y + 1);
       const near = !inPond(x - 3, y) || !inPond(x + 3, y) || !inPond(x, y - 3) || !inPond(x, y + 3);
@@ -99,13 +96,11 @@ function drawPond(g: Painter) {
     }
   }
   // lily pads + shimmer
-  for (const [x, y] of [[80, 250], [112, 262], [100, 240], [126, 252]]) {
+  for (const [x, y] of POND_SPOTS.slice(0, 3)) {
     g.ell(x, y, 3, 2, "#4b9a3c");
     g.p(x + 1, y, "#ff9ec4");
   }
-  for (const [x, y] of [[70, 262], [92, 270], [118, 240]]) {
-    g.r(x, y, 4, 1, "#bfe7fb");
-  }
+  for (const [x, y] of POND_SPOTS) g.r(x - 8, y + 6, 4, 1, "#bfe7fb");
 }
 
 // ---------- props ----------
@@ -164,26 +159,19 @@ export function drawProps(scene: Phaser.Scene) {
   makeTexture(scene, "rock", 10, 7, (g) => {
     g.ell(5, 4, 4, 2, "#8d8d96"); g.ell(4, 3, 3, 2, "#aaaab3"); g.p(3, 2, "#d0d0d8");
   }, OUT);
-  makeTexture(scene, "shadow", 12, 5, (g) => {
-    g.ell(6, 2, 5, 2, "rgba(30,50,20,0.35)");
-  });
   makeTexture(scene, "puff", 6, 6, (g) => { g.disc(3, 3, 2, "rgba(255,255,255,0.8)"); });
   makeTexture(scene, "spark", 7, 7, (g) => {
     g.r(3, 0, 1, 7, "#ffe28a"); g.r(0, 3, 7, 1, "#ffe28a"); g.r(2, 2, 3, 3, "#fff6c8");
   });
-  for (let f = 0; f < 2; f++) {
-    makeTexture(scene, `fountain_${f}`, 32, 32, (g) => {
-      g.ell(16, 23, 15, 8, "#8d8d96");
-      g.ell(16, 22, 15, 8, "#c9c9d1");
-      g.ell(16, 22, 12, 6, "#58b0e4");
-      g.ell(16, 23, 9, 3, "#7cc6ee");
-      g.r(14, 9, 4, 13, "#b0b0ba"); g.r(14, 9, 1, 13, "#d8d8e0");
-      g.ell(16, 9, 6, 2, "#c9c9d1"); g.ell(16, 9, 4, 1, "#58b0e4");
-      const jet = f ? [[16, 3], [15, 5], [17, 4], [13, 7], [19, 7]] : [[16, 4], [16, 2], [14, 6], [18, 6], [12, 8], [20, 8]];
-      for (const [x, y] of jet) g.p(x, y, "#bfe7fb");
-      g.p(11 + f, 19, "#bfe7fb"); g.p(21 - f, 20, "#bfe7fb");
-    }, OUT);
-  }
+  makeTexture(scene, "fountain", 32, 32, (g) => {
+    g.ell(16, 23, 15, 8, "#8d8d96");
+    g.ell(16, 22, 15, 8, "#c9c9d1");
+    g.ell(16, 22, 12, 6, "#58b0e4");
+    g.ell(16, 23, 9, 3, "#7cc6ee");
+    g.r(14, 9, 4, 13, "#b0b0ba"); g.r(14, 9, 1, 13, "#d8d8e0");
+    g.ell(16, 9, 6, 2, "#c9c9d1"); g.ell(16, 9, 4, 1, "#58b0e4");
+    for (const [x, y] of [[16, 4], [16, 2], [14, 6], [18, 6], [12, 8], [20, 8], [11, 19], [21, 20]]) g.p(x, y, "#bfe7fb");
+  }, OUT);
   void FOUNTAIN; void BUSHES;
 }
 

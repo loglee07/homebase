@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stops the Finance Town dev server only if the listener on the port is a Next.js
+# Stops the Homebase dev server only if the listener on the port is a Next.js
 # process whose working directory is this project. Never kills anything else.
 set -euo pipefail
 PORT="${1:-3000}"

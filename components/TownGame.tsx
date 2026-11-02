@@ -24,5 +24,5 @@ export default function TownGame({ bridge }: { bridge: TownBridge }) {
       parent.replaceChildren();
     };
   }, [bridge]);
-  return <div ref={ref} className="ft-canvas" aria-label="Finance Town map. Move with WASD or arrow keys." role="application" />;
+  return <div ref={ref} className="ft-canvas" aria-label="Homebase map. Move with WASD or arrow keys." role="application" />;
 }

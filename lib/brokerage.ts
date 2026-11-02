@@ -7,6 +7,15 @@ import { MAX_MANUAL_CENTS, type Cents } from "./money";
 export const REFRESH_COOLDOWN_MS = 60_000;
 /** A snapshot older than this is shown as stale even if the last refresh succeeded. */
 export const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+/** Balances younger than this are not fetched again automatically (each fetch is a provider call, and some are billed). */
+export const AUTO_LOAD_MAX_AGE_MS = 60 * 60 * 1000;
+
+/** Whether included balances should be loaded automatically: nothing loaded yet, or the loaded copy is over an hour old. */
+export const needsAutoLoad = (fetchedAt: string | null | undefined, now: number, maxAgeMs = AUTO_LOAD_MAX_AGE_MS): boolean => {
+  if (!fetchedAt) return true;
+  const t = Date.parse(fetchedAt);
+  return !Number.isFinite(t) || now - t > maxAgeMs;
+};
 export const BROKERAGE_PREFS_KEY = "finance-town:brokerage-prefs:v1";
 
 export type BrokerageStatus =
@@ -31,7 +40,7 @@ export interface BrokerageAccount {
 }
 
 export interface BrokerageSnapshot {
-  /** When Finance Town fetched this snapshot. Different from each account's asOf. */
+  /** When Homebase fetched this snapshot. Different from each account's asOf. */
   fetchedAt: string;
   accounts: BrokerageAccount[];
   connections: { total: number; readOnly: number; blocked: number };

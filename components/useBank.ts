@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BankErrorCode, BankState, PlaidEnvironment } from "@/lib/plaid";
+import type { BankActivityState } from "@/lib/bankActivity";
+import { BANK_ERROR_TEXT, type BankErrorCode, type BankState, type PlaidEnvironment } from "@/lib/plaid";
 import { apiCall } from "./apiCall";
 
 export type BankProviderKind = "none" | "plaid" | "fixtures";
@@ -28,6 +29,11 @@ export interface BankClient {
   onLinkSuccess: (publicToken: string) => Promise<void>;
   onLinkExit: () => void;
   refresh: () => Promise<void>;
+  /** Saved transaction history (read-only). Never part of balances or net worth. Null until loaded, and after a lock. */
+  activity: BankActivityState | null;
+  activityBusy: boolean;
+  activityMessage: string | null;
+  syncActivity: () => Promise<void>;
 }
 
 const ERRORS: Record<string, string> = {
@@ -54,6 +60,9 @@ export function useBank(unlocked: boolean): BankClient {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [launch, setLaunch] = useState<LinkLaunch | null>(null);
+  const [activityRaw, setActivityRaw] = useState<BankActivityState | null>(null);
+  const [activityBusy, setActivityBusy] = useState(false);
+  const [activityMessage, setActivityMessage] = useState<string | null>(null);
   const alive = useRef(true);
   const launchMode = useRef<"new" | "update">("new");
   useEffect(() => {
@@ -70,6 +79,10 @@ export function useBank(unlocked: boolean): BankClient {
       const d = r.data as { provider: BankProviderKind; env?: BankInfo["env"]; missing?: string[]; state?: BankState };
       setInfo({ provider: d.provider, env: d.env ?? null, missing: d.missing ?? [] });
       setRaw(d.state ?? null);
+      if (d.provider !== "none" && d.state?.vault === "linked") {
+        const a = await apiCall("brokerage/bank/activity", "GET"); // saved history only: this never contacts Plaid
+        if (alive.current && a.status === 200) setActivityRaw((a.data as { state: BankActivityState | null }).state);
+      }
     } catch {
       // stays hidden; the panel shows its checking state
     }
@@ -88,6 +101,8 @@ export function useBank(unlocked: boolean): BankClient {
       setRaw(null);
       setMessage(null);
       setLaunch(null);
+      setActivityRaw(null);
+      setActivityMessage(null);
     }, 0);
     return () => clearTimeout(t);
   }, [unlocked]);
@@ -106,6 +121,24 @@ export function useBank(unlocked: boolean): BankClient {
       if (alive.current) setMessage("Could not reach the local server.");
     } finally {
       if (alive.current) setBusy(false);
+    }
+  }, []);
+
+  const syncActivity = useCallback(async () => {
+    setActivityBusy(true);
+    setActivityMessage(null);
+    try {
+      const r = await apiCall("brokerage/bank/activity/sync", "POST");
+      if (!alive.current) return;
+      const d = r.data as { outcome?: string; state?: BankActivityState | null } | null;
+      if (d?.state) setActivityRaw(d.state);
+      if (r.status === 429) setActivityMessage("Synced a moment ago. Wait for the cooldown.");
+      else if (r.status !== 200) setActivityMessage(say(r.data));
+      else if (d?.outcome === "failed" && d.state?.lastError) setActivityMessage(`${BANK_ERROR_TEXT[d.state.lastError]} The saved history was kept.`);
+    } catch {
+      if (alive.current) setActivityMessage("Could not reach the local server.");
+    } finally {
+      if (alive.current) setActivityBusy(false);
     }
   }, []);
 
@@ -154,7 +187,7 @@ export function useBank(unlocked: boolean): BankClient {
     setMessage("Connection cancelled. Nothing was saved.");
   }, []);
 
-  return { info, state: unlocked ? raw : null, busy, message, launch, connect, onLinkSuccess, onLinkExit, refresh };
+  return { info, state: unlocked ? raw : null, busy, message, launch, connect, onLinkSuccess, onLinkExit, refresh, activity: unlocked ? activityRaw : null, activityBusy, activityMessage, syncActivity };
 }
 
 export type { BankErrorCode };

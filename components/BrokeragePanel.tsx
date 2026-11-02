@@ -159,11 +159,11 @@ export function BrokeragePanel({ controls, manual }: Props) {
       ) : (
         <>
           <p className="bk-note">
-            Fetched by Finance Town {fmtDateTime(snapshot.fetchedAt)} from SnapTrade. Each brokerage syncs on its own schedule (usually daily), shown as the data-as-of time on each account.
+            Fetched by Homebase {fmtDateTime(snapshot.fetchedAt)} from SnapTrade. Each brokerage syncs on its own schedule (usually daily), shown as the data-as-of time on each account.
           </p>
           {snapshot.connections.blocked > 0 && (
             <p className="bk-error">
-              {snapshot.connections.blocked} connection{snapshot.connections.blocked === 1 ? " is" : "s are"} not read-only. Finance Town never reads them. Reconnect them as read-only in SnapTrade.
+              {snapshot.connections.blocked} connection{snapshot.connections.blocked === 1 ? " is" : "s are"} not read-only. Homebase never reads them. Reconnect them as read-only in SnapTrade.
             </p>
           )}
           {snapshot.accounts.length === 0 ? (

@@ -49,6 +49,8 @@ export type BankErrorCode =
   | "not_linked"
   | "vault_unreadable"
   | "environment_mismatch"
+  | "sync_changed"
+  | "storage_failed"
   | "unknown";
 
 export type VaultStatus = "empty" | "linked" | "unreadable";
@@ -158,5 +160,7 @@ export const BANK_ERROR_TEXT: Record<BankErrorCode, string> = {
   not_linked: "BluPeak is not connected.",
   vault_unreadable: "The saved connection could not be read.",
   environment_mismatch: "The saved connection belongs to a different Plaid environment.",
+  sync_changed: "The bank kept changing its data during the sync. Try again in a moment.",
+  storage_failed: "Could not save the activity on this computer, so nothing changed.",
   unknown: "Plaid returned an unexpected error.",
 };

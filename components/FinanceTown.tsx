@@ -7,6 +7,7 @@ import { summarize, type Account } from "@/lib/finance";
 import { bankPrefEnvironment, bankToAccounts, countsTowardNetWorth } from "@/lib/plaid";
 import {
   BROKERAGE_PREFS_KEY,
+  needsAutoLoad,
   brokerageToAccounts,
   counted,
   markManual,
@@ -68,7 +69,7 @@ const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
   manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
 };
 
-const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home", school: "enter the School" };
+const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home", school: "enter the School", kitchen: "visit the Kitchen" };
 
 export function FinanceTown() {
   const bridge = useMemo(() => new TownBridge(), []);
@@ -132,6 +133,38 @@ export function FinanceTown() {
     if (saved.status !== "ok") return;
     if (historyStore.write(serializeHistory(recordSnapshot(saved.entries, new Date(), summary, connectedNow)))) recordedKey.current = key;
   }, [recordable, summary, connectedNow]);
+
+  // Auto-load: once the session is unlocked, load included connected balances so the coin counter is complete without a
+  // trip to the Bank. Read-only, once per unlock per provider, skipped when the server already holds a fresh copy (under an
+  // hour old), and the server's cooldown still applies. Nothing is included by default, so nothing loads until you choose.
+  const autoLoaded = useRef({ snaptrade: false, bank: false });
+  const unlockedNow = brokerageClient.access === "unlocked";
+  const brokerageRefresh = brokerageClient.refresh;
+  const bankRefresh = bankClient.refresh;
+  const snapFetched = brokerageState ? (brokerageState.snapshot?.fetchedAt ?? null) : undefined; // undefined: not read from the server yet
+  const bankFetched = bankState ? (bankState.snapshot?.fetchedAt ?? null) : undefined;
+  const bankEnv = bankClient.info?.env ?? null;
+  const wantsSnap = prefs.included.some((id) => !id.startsWith("plaid:"));
+  const wantsBank = bankEnv !== null && countsTowardNetWorth(bankEnv) && prefs.included.some((id) => bankPrefEnvironment(id) === bankEnv);
+  const snapBusy = brokerageClient.busy;
+  const bankBusy = bankClient.busy;
+  const providerKind = brokerageClient.provider;
+  useEffect(() => {
+    if (!unlockedNow) {
+      autoLoaded.current = { snaptrade: false, bank: false }; // a new unlock may load again
+      return;
+    }
+    if (mode !== "manual") return;
+    const now = Date.now();
+    if (wantsSnap && providerKind !== null && providerKind !== "none" && snapFetched !== undefined && !snapBusy && !autoLoaded.current.snaptrade && needsAutoLoad(snapFetched, now)) {
+      autoLoaded.current.snaptrade = true;
+      void brokerageRefresh();
+    }
+    if (wantsBank && bankFetched !== undefined && !bankBusy && !autoLoaded.current.bank && needsAutoLoad(bankFetched, now)) {
+      autoLoaded.current.bank = true;
+      void bankRefresh();
+    }
+  }, [unlockedNow, mode, wantsSnap, wantsBank, providerKind, snapFetched, bankFetched, snapBusy, bankBusy, brokerageRefresh, bankRefresh]);
 
   const brokerage = useMemo<BrokerageControls>(
     () => ({
@@ -251,6 +284,7 @@ export function FinanceTown() {
       onInteract: (id) => {
         if (id === "bank") setBankOpen(true);
         else if (id === "school") setSchoolOpen(true);
+        else if (id === "kitchen") showToast("The Kitchen will track what you eat and add up your macros. Coming soon.");
         else showToast(`Your ${homeTier === 2 ? "manor" : "cottage"}. Reach ${formatCents(HOME_UPGRADE_THRESHOLD_CENTS)} net worth to upgrade it.`);
       },
     });
@@ -263,7 +297,7 @@ export function FinanceTown() {
     <main className="ft-app">
       <Hud
         netWorthText={formatCents(summary.netWorthCents)}
-        partial={brokeragePending}
+        pending={brokeragePending}
         homeTier={milestones.homeTier}
         mode={mode}
         onMode={setMode}
@@ -286,7 +320,6 @@ export function FinanceTown() {
         <Nameplates bridge={bridge} homeTier={milestones.homeTier} />
         {!bankOpen && !schoolOpen && <SchoolNotice input={{ access: brokerageClient.access, states: schoolClient.states, loaded: schoolClient.loaded, loadFailed: schoolClient.loadFailed, busy: Object.values(schoolClient.busy).some(Boolean) }} onOpen={() => setSchoolOpen(true)} />}
         {toast && <div className="ft-toast" role="status">{toast}</div>}
-        <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>
 
       {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} history={mode === "manual" ? { load: history, unlocked: brokerageClient.access === "unlocked" } : undefined} onClose={closeBank} />}

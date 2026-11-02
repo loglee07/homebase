@@ -4,6 +4,7 @@ import {
   brokerageToAccounts,
   counted,
   markManual,
+  needsAutoLoad,
   normalizeBrokerage,
   parsePrefs,
   possibleDuplicates,
@@ -154,5 +155,16 @@ describe("manual backups stay free of provider data", () => {
     const text = serializeBackup({ version: 1, accounts: [{ id: "m1", name: "Everyday", kind: "checking", balanceCents: 1, updatedAt: "2026-11-01T00:00:00.000Z" }] }, () => "2026-11-01T00:00:00.000Z");
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(["accounts", "exportedAt", "format", "version"]);
     expect(text).not.toMatch(/snaptrade|brokerage|included|excluded|asOf|fetchedAt/i);
+  });
+});
+
+describe("auto-load", () => {
+  const now = Date.parse("2026-11-01T12:00:00Z");
+  it("loads when nothing is loaded or the copy is over an hour old, and leaves fresh copies alone", () => {
+    expect(needsAutoLoad(null, now)).toBe(true);
+    expect(needsAutoLoad(undefined, now)).toBe(true);
+    expect(needsAutoLoad("garbage", now)).toBe(true);
+    expect(needsAutoLoad("2026-11-01T11:30:00Z", now)).toBe(false);
+    expect(needsAutoLoad("2026-11-01T10:59:59Z", now)).toBe(true);
   });
 });

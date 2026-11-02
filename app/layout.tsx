@@ -6,7 +6,7 @@ const body = Geist({ variable: "--font-body", subsets: ["latin"] });
 const display = Pixelify_Sans({ variable: "--font-display", subsets: ["latin"], weight: ["500", "700"] });
 
 export const metadata: Metadata = {
-  title: "Finance Town",
+  title: "Homebase",
   description: "A cozy pixel-art town for your real-life finances. Sample data only.",
 };
 

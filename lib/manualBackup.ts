@@ -45,7 +45,7 @@ export function parseBackup(text: string): BackupParse {
   }
   const obj = data as { format?: unknown; version?: unknown; accounts?: unknown } | null;
   if (!obj || typeof obj !== "object" || Array.isArray(obj) || obj.format !== BACKUP_FORMAT) {
-    return { ok: false, error: "That file is not a Finance Town accounts backup." };
+    return { ok: false, error: "That file is not a Homebase accounts backup." };
   }
   if (obj.version !== BACKUP_VERSION) return { ok: false, error: "That backup is from an unsupported version." };
   const parsed = parseManualState({ version: 1, accounts: obj.accounts });

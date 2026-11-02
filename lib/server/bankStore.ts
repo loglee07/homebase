@@ -9,7 +9,7 @@ export interface BankProvider {
 }
 
 const KNOWN: BankErrorCode[] = [
-  "environment_mismatch","auth_failed", "rate_limited", "network", "timeout", "reconnect_required", "not_linked", "vault_unreadable", "unknown"];
+  "environment_mismatch", "sync_changed", "storage_failed", "auth_failed", "rate_limited", "network", "timeout", "reconnect_required", "not_linked", "vault_unreadable", "unknown"];
 const asBankError = (code: unknown): BankErrorCode => (KNOWN.includes(code as BankErrorCode) ? (code as BankErrorCode) : "unknown");
 
 interface Internal {
