@@ -1,15 +1,16 @@
 import Phaser from "phaser";
 import type { TownBridge, InteractableId } from "./bridge";
 import type { HomeTier } from "@/lib/milestones";
-import { drawBuildings, drawGround, drawProps, type Dir } from "./art";
+import { drawBuildings, drawGround, drawGroundFill, drawProps, type Dir } from "./art";
 import {
-  CF, COBBLE, FENCE_FRAME, OAK, PLAYER_ORIGIN_Y, addDecorFrames, drawLicensedGround, licensedLoaded, playerFrame, probeLoaded,
+  CF, COBBLE, FENCE_FRAME, OAK, PLAYER_ORIGIN_Y, addDecorFrames, drawLicensedFill, drawLicensedGround, licensedLoaded, playerFrame, probeLoaded,
   queueLicensed, queueProbe,
 } from "./licensed";
 import {
   BANK_CENTER_X, BANK_FOOTPRINT, SCHOOL_CENTER_X, SCHOOL_FOOTPRINT, BENCHES, BUILDING_BASE_Y, BUSHES, FENCES, FOUNTAIN, FOUNTAIN_BLOCK, HOME_CENTER_X,
-  HOME_FOOTPRINT, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, pondBlocks, waterBlocks, type Rect,
+  HOME_FOOTPRINT, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, buildPadTrees, pondBlocks, waterBlocks, type Rect, type TreeSpec,
 } from "./layout";
+import { EXT_H, EXT_W, PAD_X, PAD_Y, sameView, viewFor } from "./viewport";
 
 /** texture key -> file in public/sprites */
 const CUSTOM_SPRITES = [{ key: "home_1", file: "home_1" }, { key: "home_2", file: "home_2" }, { key: "bank", file: "bank" }, { key: "school", file: "school" }];
@@ -70,18 +71,17 @@ export class TownScene extends Phaser.Scene {
     const blockedForFlowers = (x: number, y: number) =>
       (x > 56 && x < 168 && y > 40 && y < 150) || (x > 312 && x < 424 && y > 40 && y < 150) || (x > 184 && x < 296 && y > 40 && y < 150) || (x > 216 && x < 264 && y > 150 && y < 200);
     (this.licensed ? drawLicensedGround : drawGround)(this, blockedForFlowers);
+    // Extra terrain for big windows: grass tiled under and around the village, then a loose forest. All decoration.
+    (this.licensed ? drawLicensedFill : drawGroundFill)(this);
+    this.add.tileSprite(-PAD_X, -PAD_Y, EXT_W, EXT_H, "ground_fill").setOrigin(0, 0).setDepth(-1);
     this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(0);
+    for (const t of buildPadTrees(PAD_X, PAD_Y)) this.addTree(t);
 
     this.blockers = this.physics.add.staticGroup();
     this.houseBlockers = this.physics.add.staticGroup();
 
     for (const t of TREES) {
-      if (this.licensed) {
-        const oak = t.kind === "oak2" || t.kind === "blossom" ? OAK.shaded : OAK.plain;
-        this.add.image(t.x, t.y + 1, CF.oak, oak.frame).setOrigin(0.5, oak.originY).setDepth(t.y);
-      } else {
-        this.add.image(t.x, t.y + 1, `tree_${t.kind}`).setOrigin(0.5, 1).setDepth(t.y);
-      }
+      this.addTree(t);
       solids.push({ x: t.x - 4, y: t.y - 5, w: 8, h: 5 });
     }
     for (const p of [...LAMPS, ...BENCHES, MAILBOX, ...FENCES]) if (p.solid) solids.push(p.solid);
@@ -127,6 +127,11 @@ export class TownScene extends Phaser.Scene {
     body.setSize(8, 5);
     body.setOffset((this.player.width - 8) / 2, this.player.height * this.player.originY - 5);
     this.physics.world.setBounds(10, 30, WORLD_W - 20, WORLD_H - 36);
+    // The canvas fills the window (RESIZE). The camera zooms in whole steps and follows the player inside the village.
+    this.cameras.main.setBackgroundColor("#3f7d3a");
+    const onResize = () => this.updateCamera();
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
     body.setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.blockers);
     this.physics.add.collider(this.player, this.houseBlockers);
@@ -149,6 +154,15 @@ export class TownScene extends Phaser.Scene {
 
     // chimney smoke
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.puff() });
+  }
+
+  private addTree(t: TreeSpec) {
+    if (this.licensed) {
+      const oak = t.kind === "oak2" || t.kind === "blossom" ? OAK.shaded : OAK.plain;
+      this.add.image(t.x, t.y + 1, CF.oak, oak.frame).setOrigin(0.5, oak.originY).setDepth(t.y);
+    } else {
+      this.add.image(t.x, t.y + 1, `tree_${t.kind}`).setOrigin(0.5, 1).setDepth(t.y);
+    }
   }
 
   private bush(x: number, y: number) {
@@ -199,6 +213,20 @@ export class TownScene extends Phaser.Scene {
     const pos = this.tier === 2 ? { x: 92, y: 56 } : { x: 129, y: 60 };
     const p = this.add.image(pos.x, pos.y, "puff").setDepth(BUILDING_BASE_Y + 1).setAlpha(0.8);
     this.tweens.add({ targets: p, y: p.y - 22, x: p.x + 8, alpha: 0, scale: 1.8, duration: 2400, onComplete: () => p.destroy() });
+  }
+
+  private lastView: ReturnType<typeof viewFor> | null = null;
+  /** Zoom and scroll for the current canvas size and player position. Tells React so labels stay attached to the map. */
+  private updateCamera() {
+    if (!this.player) return;
+    const cam = this.cameras.main;
+    const { width, height } = this.scale.gameSize;
+    const v = viewFor(width, height, this.player.x, this.player.y - 4);
+    if (sameView(this.lastView, v)) return;
+    this.lastView = v;
+    cam.setZoom(v.zoom);
+    cam.centerOn(v.left + width / v.zoom / 2, v.top + height / v.zoom / 2);
+    this.bridge.setView(v);
   }
 
   private applyPaused(paused: boolean) {
@@ -252,6 +280,7 @@ export class TownScene extends Phaser.Scene {
       this.player.setTexture(`player_${this.dir}_${frame}`);
     }
     this.player.setDepth(this.player.y);
+    this.updateCamera();
     this.shadow.setPosition(this.player.x, this.player.y - 2).setDepth(this.player.y - 0.5);
 
     if (paused) return;

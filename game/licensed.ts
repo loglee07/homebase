@@ -123,6 +123,18 @@ export function blobTile(has: (c: number, r: number) => boolean, c: number, r: n
   return BLOB.c;
 }
 
+/** Seamless pack-grass patch for the extra terrain around the village. */
+export function drawLicensedFill(scene: Phaser.Scene) {
+  if (scene.textures.exists("ground_fill")) scene.textures.remove("ground_fill");
+  const tex = scene.textures.createCanvas("ground_fill", 64, 64);
+  if (!tex) throw new Error("could not create ground fill texture");
+  const ctx = tex.getContext();
+  ctx.imageSmoothingEnabled = false;
+  const grass = scene.textures.get(CF.grass).getSourceImage() as CanvasImageSource;
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) ctx.drawImage(grass, 0, 0, TILE, TILE, c * TILE, r * TILE, TILE, TILE);
+  tex.refresh();
+}
+
 export function drawLicensedGround(scene: Phaser.Scene, blocked: (x: number, y: number) => boolean) {
   if (scene.textures.exists("ground")) scene.textures.remove("ground");
   const tex = scene.textures.createCanvas("ground", WORLD_W, WORLD_H);

@@ -144,8 +144,13 @@ export function monthCells(year: number, month0: number): (string | null)[] {
 export const combine = (states: readonly Pick<SchoolState, "events">[]): SchoolEvent[] => states.flatMap((s) => s.events);
 
 export interface TownNotice {
-  /** "none": no feed link is set. "unavailable": links are set but nothing has loaded yet. */
-  status: "ok" | "unavailable" | "none";
+  /**
+   * "none": no feed link is set for any school.
+   * "not_loaded": links are set but no feed has been fetched yet (nothing failed).
+   * "unavailable": links are set, nothing has loaded and the last attempt failed.
+   * "ok": at least one school has calendar data.
+   */
+  status: "ok" | "not_loaded" | "unavailable" | "none";
   /** Calendar items today (cancelled ones left out). Not a count of unfinished work: submission status is unknown. */
   count: number;
   /** The first item still ahead: a timed item later today or after, or any date-only item from today on. */
@@ -154,17 +159,48 @@ export interface TownNotice {
   stale: boolean;
 }
 
-/** Summary for the town screen, from calendars already in memory. Never fetches. */
+/**
+ * Summary for the town screen, from calendars already in memory. Never fetches. Pass only states the server has really
+ * reported: an empty list means "not read yet", which the caller must treat as loading, never as "not set up".
+ */
 export function townNotice(states: readonly SchoolState[], now: Date): TownNotice {
   const configured = states.filter((s) => s.configured);
   if (configured.length === 0) return { status: "none", count: 0, next: null, stale: false };
   const loaded = configured.filter((s) => s.updatedAt);
   const stale = configured.some((s) => s.stale || s.lastError !== null);
-  if (loaded.length === 0) return { status: "unavailable", count: 0, next: null, stale };
+  if (loaded.length === 0) return { status: stale ? "unavailable" : "not_loaded", count: 0, next: null, stale };
   const today = localDayKey(now);
   const live = combine(loaded).filter((e) => !e.cancelled);
   const ahead = live.filter((e) => (e.allDay ? startDay(e) >= today : new Date(e.start).getTime() >= now.getTime()));
   const firstDay = ahead.map(startDay).sort()[0];
   const next = firstDay === undefined ? null : sortEvents(ahead.filter((e) => startDay(e) === firstDay))[0];
   return { status: "ok", count: live.filter((e) => occursOn(e, today)).length, next, stale };
+}
+
+export type NoticeKind = "checking" | "off" | "locked" | "loading" | "load_failed" | "none" | "not_loaded" | "refreshing" | "unavailable" | "ok";
+
+export interface NoticeInput {
+  /** The shared local session: "checking" until the server has answered. */
+  access: "checking" | "not_configured" | "locked" | "unlocked";
+  /** The server's calendar state has been read at least once this unlock. */
+  loaded: boolean;
+  /** Reading the server's calendar state failed (the local server, not Canvas). */
+  loadFailed: boolean;
+  /** A feed fetch is running for some school. */
+  busy: boolean;
+  states: readonly SchoolState[];
+}
+
+/** Which message the town notice shows. Distinguishes every reason there is no count, so "not set up" is never a guess. */
+export function noticeKind(i: NoticeInput, now: Date): { kind: NoticeKind; notice: TownNotice | null } {
+  if (i.access === "checking") return { kind: "checking", notice: null };
+  if (i.access === "not_configured") return { kind: "off", notice: null };
+  if (i.access === "locked") return { kind: "locked", notice: null };
+  if (i.loadFailed && !i.loaded) return { kind: "load_failed", notice: null };
+  if (!i.loaded) return { kind: "loading", notice: null };
+  const notice = townNotice(i.states, now);
+  if (notice.status === "none") return { kind: "none", notice };
+  if (notice.status === "ok") return { kind: "ok", notice };
+  if (i.busy) return { kind: "refreshing", notice };
+  return { kind: notice.status, notice };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseFeed, splitTitle, wallToInstant } from "@/lib/server/ics";
 import { hostAllowed, parseFeedUrl, redirectAllowed, safeEventUrl } from "@/lib/server/schoolHosts";
-import { addDays, combine, eventsOn, monthCells, nextSevenDays, occursOn, sortEvents, startDay, timeLabel, townNotice, upcoming, type SchoolEvent, type SchoolState } from "@/lib/school";
+import { addDays, combine, eventsOn, monthCells, nextSevenDays, occursOn, sortEvents, startDay, timeLabel, noticeKind, townNotice, upcoming, type SchoolEvent, type SchoolState } from "@/lib/school";
 
 const NOW = new Date("2026-11-04T18:00:00Z");
 const cal = (...events: string[]) => ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//t//EN", ...events, "END:VCALENDAR"].join("\r\n");
@@ -240,11 +240,47 @@ describe("town notice", () => {
   it("marks stale data and unavailable or unconfigured schools", () => {
     expect(townNotice([st("sdsu", [], { stale: true, lastError: "network" })], now)).toMatchObject({ status: "ok", stale: true });
     expect(townNotice([st("sdsu", [], { updatedAt: null, lastError: "timeout" })], now)).toMatchObject({ status: "unavailable", stale: true, count: 0 });
+    expect(townNotice([st("sdsu", [], { updatedAt: null })], now)).toMatchObject({ status: "not_loaded", stale: false });
     expect(townNotice([st("sdsu", [], { configured: false, updatedAt: null })], now).status).toBe("none");
     expect(townNotice([], now).status).toBe("none");
   });
   it("uses a school's last good copy while the other is unavailable", () => {
     const n = townNotice([st("sdsu", [e("a", "sdsu", at(15), false)]), st("sdccd", [], { updatedAt: null, lastError: "network" })], now);
     expect(n).toMatchObject({ status: "ok", count: 1, stale: true });
+  });
+});
+
+describe("nameplates", () => {
+  it("anchor above each roof with a gap and follow the home tier", async () => {
+    const { nameplatesFor } = await import("@/game/nameplates");
+    const [c, m] = [nameplatesFor(1), nameplatesFor(2)];
+    expect(c.map((p) => p.id)).toEqual(["home", "bank", "school"]);
+    expect(c[0].roofY).toBeGreaterThan(m[0].roofY); // the manor is taller, so its plaque sits higher
+    expect(c[1]).toEqual(m[1]);
+  });
+});
+
+describe("notice states", () => {
+  const base = { access: "unlocked", loaded: true, loadFailed: false, busy: false } as const;
+  const cfg = (extra: Partial<SchoolState> = {}) => ({ school: "sdsu", configured: true, events: [], updatedAt: null, stale: false, lastError: null, lastAttemptAt: null, cooldownUntil: null, ...extra }) as SchoolState;
+  const now = new Date(2026, 10, 4, 12);
+  const kind = (i: Partial<Parameters<typeof noticeKind>[0]>) => noticeKind({ ...base, states: [], ...i }, now).kind;
+
+  it("never says 'not set up' before the server has answered", () => {
+    expect(kind({ loaded: false, states: [] })).toBe("loading");
+    expect(kind({ loaded: false, loadFailed: true })).toBe("load_failed");
+    expect(kind({ access: "checking", loaded: false })).toBe("checking");
+  });
+  it("separates locked, off, not configured, not loaded, refreshing, failed and ok", () => {
+    expect(kind({ access: "locked" })).toBe("locked");
+    expect(kind({ access: "not_configured" })).toBe("off");
+    expect(kind({ states: [cfg({ configured: false }), cfg({ school: "sdccd", configured: false })] })).toBe("none");
+    expect(kind({ states: [cfg(), cfg({ school: "sdccd" })] })).toBe("not_loaded");
+    expect(kind({ states: [cfg()], busy: true })).toBe("refreshing");
+    expect(kind({ states: [cfg({ lastError: "timeout" })] })).toBe("unavailable");
+    expect(kind({ states: [cfg({ updatedAt: "2026-11-04T10:00:00.000Z" })] })).toBe("ok");
+  });
+  it("one configured school is enough to avoid 'not set up'", () => {
+    expect(kind({ states: [cfg({ configured: false }), cfg({ school: "sdccd" })] })).toBe("not_loaded");
   });
 });

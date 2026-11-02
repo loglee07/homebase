@@ -1,6 +1,6 @@
 // Request checks for every financial endpoint. Order: loopback host, same-origin, access code configured, session.
 // Each failure returns a fixed small body; nothing about the data or the credentials leaks through an error.
-import { SESSION_COOKIE, accessCode, readCookie, validSession } from "./session";
+import { SESSION_COOKIE, accessCode, checkSession, readCookie } from "./session";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
@@ -44,7 +44,8 @@ export function guard(req: Request, opts: GuardOptions = {}, env: NodeJS.Process
 
   if (opts.session) {
     if (!accessCode(env)) return json({ error: "not_configured" }, 503);
-    if (!validSession(readCookie(req.headers.get("cookie"), SESSION_COOKIE))) return json({ error: "unauthorized" }, 401);
+    const check = checkSession(readCookie(req.headers.get("cookie"), SESSION_COOKIE));
+    if (!check.valid) return json({ error: "unauthorized", reason: check.reason }, 401); // read-only: this never extends a limit
   }
   return null;
 }

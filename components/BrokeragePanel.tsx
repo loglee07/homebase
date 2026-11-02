@@ -142,7 +142,6 @@ export function BrokeragePanel({ controls, manual }: Props) {
         <button className="ft-btn" onClick={() => void client.refresh()} disabled={busy || wait > 0}>
           {busy ? "Refreshing…" : wait > 0 ? `Refresh in ${wait}s` : snapshot ? "Refresh" : "Load balances"}
         </button>
-        <button className="ft-btn" onClick={() => void client.lock()} disabled={busy}>Lock</button>
         {provider === "fixtures" && <span className="bk-badge">Synthetic test data</span>}
       </div>
       {message && <p className="bk-error" role="alert">{message}</p>}

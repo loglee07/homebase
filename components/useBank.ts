@@ -81,6 +81,17 @@ export function useBank(unlocked: boolean): BankClient {
     return () => clearTimeout(t);
   }, [unlocked, load]);
 
+  // Locking or expiry removes BluPeak data from memory, not just from view. Saved connections stay on the server.
+  useEffect(() => {
+    if (unlocked) return;
+    const t = setTimeout(() => {
+      setRaw(null);
+      setMessage(null);
+      setLaunch(null);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [unlocked]);
+
   const refresh = useCallback(async () => {
     setBusy(true);
     setMessage(null);

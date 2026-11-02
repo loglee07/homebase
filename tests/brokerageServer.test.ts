@@ -1,11 +1,14 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guard, isLoopbackHost } from "@/lib/server/guard";
-import { LOCKOUT_MS, MAX_FAILURES, login, resetSessionsForTest, sessionCookie, validSession, logout } from "@/lib/server/session";
+import { IDLE_TIMEOUT_MS, LOCKOUT_MS, MAX_FAILURES, SESSION_TTL_MS, checkSession, login, resetSessionsForTest, sessionCookie, touchSession, validSession, logout } from "@/lib/server/session";
 import { BrokerageError, publicState, refresh, resetBrokerageForTest, type BrokerageProvider } from "@/lib/server/brokerageStore";
 import { createFixtureProvider } from "@/lib/server/fixtures";
 import { REFRESH_COOLDOWN_MS, STALE_AFTER_MS } from "@/lib/brokerage";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/server/provider", () => ({ getProvider: () => ({ kind: "none" }) }));
 
 const CODE = "synthetic-access-code-123";
 const env = { FINANCE_TOWN_ACCESS_CODE: CODE } as unknown as NodeJS.ProcessEnv;
@@ -184,5 +187,179 @@ describe("static boundaries", () => {
     const scripts = JSON.parse(read("package.json")).scripts;
     expect(scripts.dev).toContain("-H 127.0.0.1");
     expect(scripts.start).toContain("-H 127.0.0.1");
+  });
+});
+
+describe("one session for every building", () => {
+  const routes = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => {
+      const p = path.join(dir, n);
+      return statSync(p).isDirectory() ? routes(p) : n === "route.ts" ? [p] : [];
+    });
+  const root = path.join(process.cwd(), "app/api/brokerage");
+
+  it("every protected route checks the session on the server (only status and session do not)", () => {
+    const found = routes(root).map((p) => path.relative(root, path.dirname(p)));
+    expect(found.length).toBeGreaterThan(5);
+    for (const r of found) {
+      const src = readFileSync(path.join(root, r, "route.ts"), "utf8");
+      if (r === "status" || r === "session") continue;
+      expect(src, r).toMatch(/session:\s*true/);
+    }
+  });
+  it("one login opens the guard for bank and school routes alike; one logout closes both", () => {
+    const ok = login(CODE, Date.now(), env);
+    if (!ok.ok) throw new Error("login failed");
+    const withCookie = { ...BASE, cookie: `ft_session=${ok.token}` };
+    for (const p of ["bank/state", "school/state", "snapshot"]) {
+      expect(guard(new Request(`http://localhost:3000/api/brokerage/${p}`, { headers: withCookie }), { session: true }, env), p).toBeNull();
+    }
+    logout(ok.token);
+    for (const p of ["bank/state", "school/state", "snapshot"]) {
+      expect(guard(new Request(`http://localhost:3000/api/brokerage/${p}`, { headers: withCookie }), { session: true }, env)?.status, p).toBe(401);
+    }
+  });
+  it("the session expires after 8 hours, for every route at once", () => {
+    const ok = login(CODE, 1_000, env);
+    if (!ok.ok) throw new Error("login failed");
+    // keep it active every 10 minutes so only the absolute limit can end it
+    for (let t = 1_000; t < 1_000 + SESSION_TTL_MS - 600_000; t += 600_000) expect(touchSession(ok.token, t).valid).toBe(true);
+    expect(validSession(ok.token, 1_000 + SESSION_TTL_MS - 1)).toBe(true);
+    expect(validSession(ok.token, 1_000 + SESSION_TTL_MS)).toBe(false);
+  });
+  it("the page keeps one access client, one Lock button, no stored unlocked flag, and locks on any 401", () => {
+    const town = read("components/FinanceTown.tsx");
+    expect(town.match(/useBrokerage\(/g)).toHaveLength(1);
+    expect(read("components/apiCall.ts")).toContain("SESSION_ENDED_EVENT");
+    expect(read("components/BrokeragePanel.tsx")).not.toContain("client.lock()");
+    for (const f of ["components/FinanceTown.tsx", "components/useBrokerage.ts", "components/apiCall.ts"]) {
+      expect(read(f), f).not.toMatch(/(local|session)Storage[^\n]*(unlock|access|session)/i);
+    }
+  });
+});
+
+
+describe("idle timeout (controlled clock)", () => {
+  const T0 = 1_000_000;
+  const start = () => {
+    const ok = login(CODE, T0, env);
+    if (!ok.ok) throw new Error("login failed");
+    return ok.token;
+  };
+
+  it("ends after 30 minutes without activity, at the exact boundary", () => {
+    const token = start();
+    expect(validSession(token, T0 + IDLE_TIMEOUT_MS - 1)).toBe(true);
+    expect(checkSession(token, T0 + IDLE_TIMEOUT_MS)).toEqual({ valid: false, reason: "idle" });
+  });
+  it("reported activity moves the idle deadline, again and again", () => {
+    const token = start();
+    let t = T0;
+    for (let i = 0; i < 15; i++) {
+      t += IDLE_TIMEOUT_MS - 60_000; // always inside the window
+      expect(touchSession(token, t)).toMatchObject({ valid: true, idleMsLeft: IDLE_TIMEOUT_MS });
+    }
+    expect(validSession(token, t + IDLE_TIMEOUT_MS - 1)).toBe(true);
+    expect(validSession(token, t + IDLE_TIMEOUT_MS)).toBe(false);
+  });
+  it("checking, protected routes and reloads never move it", () => {
+    vi.useFakeTimers();
+    try {
+      const token = start();
+      for (let t = T0 + 60_000; t < T0 + IDLE_TIMEOUT_MS; t += 60_000) {
+        vi.setSystemTime(t);
+        const c = checkSession(token, t); // what status polling, a reload or any route does
+        expect(c).toMatchObject({ valid: true });
+        expect((c as { idleMsLeft: number }).idleMsLeft).toBe(IDLE_TIMEOUT_MS - (t - T0));
+        expect(guard(req({ ...BASE, cookie: `ft_session=${token}` }), { session: true }, env)).toBeNull(); // a protected route
+      }
+      vi.setSystemTime(T0 + IDLE_TIMEOUT_MS);
+      expect(guard(req({ ...BASE, cookie: `ft_session=${token}` }), { session: true }, env)?.status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("activity never extends the 8 hour maximum", () => {
+    const token = start();
+    const last = T0 + SESSION_TTL_MS - 1000;
+    for (let t = T0; t < last; t += 20 * 60_000) touchSession(token, t);
+    const r = touchSession(token, last);
+    expect(r).toMatchObject({ valid: true, absoluteMsLeft: 1000 });
+    expect(touchSession(token, T0 + SESSION_TTL_MS)).toEqual({ valid: false, reason: "absolute" });
+  });
+  it("whichever limit comes first wins, and says which", () => {
+    const a = start();
+    expect(checkSession(a, T0 + IDLE_TIMEOUT_MS)).toMatchObject({ reason: "idle" });
+    const b = login(CODE, T0, env);
+    if (!b.ok) throw new Error("login failed");
+    for (let t = T0; t < T0 + SESSION_TTL_MS - 1000; t += 20 * 60_000) touchSession(b.token, t); // stays active the whole time
+    touchSession(b.token, T0 + SESSION_TTL_MS - 1000);
+    expect(checkSession(b.token, T0 + SESSION_TTL_MS)).toMatchObject({ reason: "absolute" });
+  });
+  it("an ended session cannot be revived by activity, a cookie replay or time going backwards; only the code works", () => {
+    const token = start();
+    const late = T0 + IDLE_TIMEOUT_MS + 1;
+    expect(touchSession(token, late)).toEqual({ valid: false, reason: "idle" });
+    expect(touchSession(token, late + 1)).toEqual({ valid: false, reason: "idle" }); // still gone
+    expect(validSession(token, T0 + 1)).toBe(false); // even if the clock is set back
+    expect(login(CODE, late, env)).toMatchObject({ ok: true });
+  });
+  it("an unknown cookie (for example after a server restart) is reported as unknown, never as valid", () => {
+    expect(checkSession("forged", T0)).toEqual({ valid: false, reason: "unknown" });
+    expect(checkSession(null, T0)).toEqual({ valid: false, reason: "none" });
+  });
+  it("global locking: a logout in one place ends the session for every request", () => {
+    const token = start();
+    logout(token);
+    expect(validSession(token, T0 + 1)).toBe(false);
+  });
+});
+
+describe("activity and status routes (fake clock)", () => {
+  const T0 = new Date("2026-11-01T12:00:00Z").getTime();
+  const post = (token: string | null) =>
+    new Request("http://localhost:3000/api/brokerage/activity", { method: "POST", headers: { host: "localhost:3000", origin: "http://localhost:3000", ...(token ? { cookie: `ft_session=${token}` } : {}) } });
+  const statusReq = (token: string | null) => new Request("http://localhost:3000/api/brokerage/status", { headers: { host: "localhost:3000", ...(token ? { cookie: `ft_session=${token}` } : {}) } });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    vi.stubEnv("FINANCE_TOWN_ACCESS_CODE", CODE);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("the activity route needs a session and a same-origin POST", async () => {
+    const { POST } = await import("@/app/api/brokerage/activity/route");
+    expect((await POST(post(null))).status).toBe(401);
+    expect((await POST(new Request("http://localhost:3000/api/brokerage/activity", { method: "POST", headers: { host: "localhost:3000" } }))).status).toBe(403);
+  });
+  it("activity extends the idle deadline; status polling does not; the status page reports time left and why it ended", async () => {
+    const { POST } = await import("@/app/api/brokerage/activity/route");
+    const { GET } = await import("@/app/api/brokerage/status/route");
+    const ok = login(CODE, Date.now(), env);
+    if (!ok.ok) throw new Error("login failed");
+    vi.setSystemTime(T0 + 20 * 60_000);
+    const polled = (await (await GET(statusReq(ok.token))).json()) as { access: string; idleMsLeft: number };
+    expect(polled).toMatchObject({ access: "unlocked", idleMsLeft: 10 * 60_000 }); // polling did not reset it
+    expect((await POST(post(ok.token))).status).toBe(200);
+    const after = (await (await GET(statusReq(ok.token))).json()) as { idleMsLeft: number; absoluteMsLeft: number };
+    expect(after.idleMsLeft).toBe(IDLE_TIMEOUT_MS);
+    expect(after.absoluteMsLeft).toBe(SESSION_TTL_MS - 20 * 60_000); // the 8 hour limit did not move
+    vi.setSystemTime(T0 + 20 * 60_000 + IDLE_TIMEOUT_MS);
+    const gone = (await (await GET(statusReq(ok.token))).json()) as { access: string; ended?: string };
+    expect(gone).toMatchObject({ access: "locked", ended: "idle" });
+    const denied = await POST(post(ok.token));
+    expect(denied.status).toBe(401);
+    expect(await denied.json()).toMatchObject({ reason: "idle" });
+  });
+  it("a cookie the server does not know reads as locked/unknown (the dev-server-restart case), never unlocked", async () => {
+    const { GET } = await import("@/app/api/brokerage/status/route");
+    const body = (await (await GET(statusReq("token-from-before-a-restart"))).json()) as { access: string; ended?: string };
+    expect(body).toMatchObject({ access: "locked", ended: "unknown" });
+    const none = (await (await GET(statusReq(null))).json()) as { access: string; ended?: string };
+    expect(none.access).toBe("locked");
+    expect(none.ended).toBeUndefined();
   });
 });

@@ -9,6 +9,8 @@ export interface SchoolClient {
   states: SchoolState[];
   fixtures: boolean;
   loaded: boolean;
+  /** The cached calendars could not be read from the local server (not a feed problem). */
+  loadFailed: boolean;
   busy: Partial<Record<SchoolId, boolean>>;
   message: string | null;
   refresh: (school: SchoolId) => Promise<void>;
@@ -19,13 +21,14 @@ const call = (path: string, method: "GET" | "POST", body?: unknown) => apiCall(`
 
 /**
  * Talks only to this app's own loopback API. Calendars are held in React state, never in localStorage or the console.
- * Opening the school reads the server's cached copy; only a refresh (or the first open with nothing cached) fetches a feed.
+ * Unlocking reads the server's cached copy; only a refresh (or the first open of the school with nothing cached) fetches a feed.
  * Once loaded, the calendars stay in memory after the school closes (the town notice reads them); locking drops them.
  */
 export function useSchool(unlocked: boolean, active: boolean): SchoolClient {
   const [states, setStates] = useState<SchoolState[]>([]);
   const [fixtures, setFixtures] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState<Partial<Record<SchoolId, boolean>>>({});
   const [message, setMessage] = useState<string | null>(null);
   const alive = useRef(true);
@@ -66,25 +69,30 @@ export function useSchool(unlocked: boolean, active: boolean): SchoolClient {
       const t = setTimeout(() => {
         setStates([]);
         setLoaded(false);
+        setLoadFailed(false);
       }, 0);
       return () => clearTimeout(t);
     }
-    if (!active) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const r = await call("state", "GET");
         if (cancelled || !alive.current) return;
         if (r.status === 401) return void setMessage("The local session expired. Lock and unlock again, then retry.");
-        if (r.status !== 200) return;
+        if (r.status !== 200) return void setLoadFailed(true);
         const d = r.data as { fixtures: boolean; schools: SchoolState[] };
         setStates(d.schools);
         setFixtures(d.fixtures);
         setLoaded(true);
-        // First open with nothing cached: load each configured school once. After that only the Refresh buttons fetch.
-        for (const s of d.schools) if (s.configured && s.lastAttemptAt === null) void refresh(s.school);
+        setLoadFailed(false);
+        // Being unlocked only reads the server's cached copy (the town notice uses it). A feed is fetched only once the
+        // school is opened: first open with nothing cached loads each configured school once; after that only Refresh fetches.
+        if (active) for (const s of d.schools) if (s.configured && s.lastAttemptAt === null) void refresh(s.school);
       } catch {
-        if (alive.current) setMessage("Could not reach the local server.");
+        if (alive.current) {
+          setMessage("Could not reach the local server.");
+          setLoadFailed(true);
+        }
       }
     }, 0);
     return () => {
@@ -93,5 +101,5 @@ export function useSchool(unlocked: boolean, active: boolean): SchoolClient {
     };
   }, [unlocked, active, refresh]);
 
-  return { states, fixtures, loaded, busy, message, refresh, refreshAll };
+  return { states, fixtures, loaded, loadFailed, busy, message, refresh, refreshAll };
 }

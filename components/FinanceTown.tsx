@@ -46,6 +46,8 @@ import type { BrokerageControls } from "./BrokeragePanel";
 import { useBank } from "./useBank";
 import { useBrokerage } from "./useBrokerage";
 import { SchoolDashboard } from "./SchoolDashboard";
+import { Hud } from "./Hud";
+import { Nameplates } from "./Nameplates";
 import { SchoolNotice } from "./SchoolNotice";
 import { useSchool } from "./useSchool";
 
@@ -85,8 +87,8 @@ export function FinanceTown() {
 
   const prefsRaw = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot, prefsStore.getServerSnapshot);
   const prefs = useMemo(() => parsePrefs(prefsRaw), [prefsRaw]);
-  // The local access-code session also unlocks the school calendars, in either mode.
-  const brokerageClient = useBrokerage(mode === "manual" || schoolOpen);
+  // One local access-code session for every protected building, in either mode. The server decides; the page asks on load.
+  const brokerageClient = useBrokerage(true);
   const brokerageState = brokerageClient.state;
   // BluPeak (Plaid) rides on the same local session: locking drops its balances from the page too.
   const schoolClient = useSchool(brokerageClient.access === "unlocked", schoolOpen);
@@ -259,45 +261,20 @@ export function FinanceTown() {
 
   return (
     <main className="ft-app">
-      <header className="ft-bar">
-        <h1>Finance Town</h1>
-        <div className="ft-chip" title={mode === "demo" ? "Net worth from sample data" : "Net worth from your accounts"}>
-          <span className="ft-label">Net worth{brokeragePending ? " (partial)" : ""}</span> <b>{formatCents(summary.netWorthCents)}</b>
-        </div>
-        <div className="ft-chip">
-          <span className="ft-label">Home</span> <b>{milestones.homeTier === 2 ? "Manor" : "Cottage"}</b>
-        </div>
-        <button className="ft-btn ft-btn-primary" onClick={() => setBankOpen(true)} disabled={bankOpen || schoolOpen}>
-          🏦 Bank
-        </button>
-        <button className="ft-btn ft-btn-primary" onClick={() => setSchoolOpen(true)} disabled={bankOpen || schoolOpen}>
-          🎓 School
-        </button>
-        <fieldset className="ft-demo ft-mode">
-          <legend>Data</legend>
-          <label>
-            <input type="radio" name="mode" checked={mode === "demo"} onChange={() => setMode("demo")} />
-            Demo
-          </label>
-          <label>
-            <input type="radio" name="mode" checked={mode === "manual"} onChange={() => setMode("manual")} />
-            My accounts
-          </label>
-        </fieldset>
-        {mode === "demo" && (
-        <fieldset className="ft-demo">
-          <legend>Demo control · sample net worth</legend>
-          <label>
-            <input type="radio" name="scenario" checked={scenario === "below"} onChange={() => setScenario("below")} />
-            Below $100k
-          </label>
-          <label>
-            <input type="radio" name="scenario" checked={scenario === "above"} onChange={() => setScenario("above")} />
-            Above $100k
-          </label>
-        </fieldset>
-        )}
-      </header>
+      <Hud
+        netWorthText={formatCents(summary.netWorthCents)}
+        partial={brokeragePending}
+        homeTier={milestones.homeTier}
+        mode={mode}
+        onMode={setMode}
+        scenario={scenario}
+        onScenario={setScenario}
+        access={brokerageClient.access}
+        onLock={() => void brokerageClient.lock()}
+        onBank={() => setBankOpen(true)}
+        onSchool={() => setSchoolOpen(true)}
+        dialogOpen={bankOpen || schoolOpen}
+      />
 
       <div className="ft-stage">
         <TownGame bridge={bridge} />
@@ -306,7 +283,8 @@ export function FinanceTown() {
             <kbd>E</kbd> {LABELS[prompt]}
           </button>
         )}
-        {!bankOpen && !schoolOpen && <SchoolNotice states={schoolClient.states} unlocked={brokerageClient.access === "unlocked"} onOpen={() => setSchoolOpen(true)} />}
+        <Nameplates bridge={bridge} homeTier={milestones.homeTier} />
+        {!bankOpen && !schoolOpen && <SchoolNotice input={{ access: brokerageClient.access, states: schoolClient.states, loaded: schoolClient.loaded, loadFailed: schoolClient.loadFailed, busy: Object.values(schoolClient.busy).some(Boolean) }} onOpen={() => setSchoolOpen(true)} />}
         {toast && <div className="ft-toast" role="status">{toast}</div>}
         <p className="ft-help">Move: WASD / arrows · Interact: E · {mode === "demo" ? "Sample data only" : "Your accounts, saved in this browser"}</p>
       </div>

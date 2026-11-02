@@ -109,3 +109,24 @@ export function pondBlocks(): Rect[] {
   }
   return out;
 }
+
+/**
+ * Scenery around the village for big windows: a loose forest in the extra terrain (see game/viewport.ts), outside the tree
+ * ring that already borders the village. Decorative only: the player is confined to the village, so it has no collision.
+ */
+export function buildPadTrees(padX: number, padY: number): TreeSpec[] {
+  const rng = mulberry32(99);
+  const kinds: TreeKind[] = ["oak", "oak2", "oak", "oak2", "autumn", "blossom"];
+  const out: TreeSpec[] = [];
+  for (let y = -padY + 8; y <= WORLD_H + padY + 24; y += 22) {
+    for (let x = -padX; x <= WORLD_W + padX; x += 21) {
+      const tx = x + Math.floor(rng() * 9) - 4;
+      const ty = y + Math.floor(rng() * 7) - 3;
+      const kind = kinds[Math.floor(rng() * kinds.length)];
+      if (rng() < 0.22) continue; // clearings so the forest is not a wall
+      const inVillage = tx > -3 && tx < WORLD_W + 3 && ty > 12 && ty < WORLD_H + 6;
+      if (!inVillage) out.push({ x: tx, y: ty, kind });
+    }
+  }
+  return out;
+}

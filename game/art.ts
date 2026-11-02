@@ -47,6 +47,24 @@ export function drawGround(scene: Phaser.Scene, blocked: (x: number, y: number) 
   });
 }
 
+/** Seamless grass patch, tiled under and around the village by a tile sprite (see TownScene). */
+export function drawGroundFill(scene: Phaser.Scene) {
+  const rng = mulberry32(5);
+  makeTexture(scene, "ground_fill", 64, 64, (g) => {
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        g.r(c * TILE, r * TILE, TILE, TILE, GRASS[Math.floor(rng() * 3)]);
+        for (let i = 0; i < 4; i++) {
+          const px = c * TILE + Math.floor(rng() * 15);
+          const py = r * TILE + 1 + Math.floor(rng() * 14);
+          g.p(px, py, "#5aa43c");
+          g.p(px + 1, py - 1, "#86d062");
+        }
+      }
+    }
+  });
+}
+
 function drawPathTile(g: Painter, c: number, r: number, x: number, y: number, rng: () => number) {
   if (isPlaza(c, r)) {
     g.r(x, y, TILE, TILE, "#bdb6a6");
