@@ -25,6 +25,20 @@ export function splitTitle(summary: unknown): { title: string; course: string | 
 const p2 = (n: number) => String(n).padStart(2, "0");
 
 /** The UTC instant of a wall-clock time in an IANA zone, found by checking the zone's own offset. Null for an unknown zone. */
+/** `course_<n>` from Canvas's `include_contexts` link parameter, or null. Only the number is kept, never the link. */
+export function courseIdOf(raw: unknown): string | null {
+  const m = typeof raw === "string" ? /[?&]include_contexts=([^&#]*)/.exec(raw) : null;
+  if (!m) return null;
+  let v: string;
+  try {
+    v = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  const c = /(?:^|,)(course_\d{1,12})(?=$|,)/i.exec(v);
+  return c ? c[1].toLowerCase() : null;
+}
+
 export function wallToInstant(y: number, mo: number, d: number, h: number, mi: number, s: number, tzid: string): Date | null {
   let fmt: Intl.DateTimeFormat;
   try {
@@ -105,6 +119,7 @@ export function parseFeed(text: string, school: SchoolId, now: Date): SchoolEven
       kind,
       dueTimeUnknown: allDay && kind === "assignment",
       location: loc || null,
+      courseId: courseIdOf(vevent.getFirstPropertyValue("url")),
       url: safeEventUrl(school, vevent.getFirstPropertyValue("url")),
       cancelled: status === "CANCELLED",
     };

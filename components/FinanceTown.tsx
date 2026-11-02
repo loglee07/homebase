@@ -51,6 +51,8 @@ import { Hud } from "./Hud";
 import { Nameplates } from "./Nameplates";
 import { SchoolNotice } from "./SchoolNotice";
 import { useSchool } from "./useSchool";
+import { useSchoolMarks } from "./useSchoolMarks";
+import { countsForReminder } from "@/lib/schoolMarks";
 
 const TownGame = dynamic(() => import("./TownGame"), {
   ssr: false,
@@ -69,7 +71,7 @@ const milestoneStores: Record<Mode, ReturnType<typeof createLocalStore>> = {
   manual: createLocalStore(MANUAL_MILESTONE_STORAGE_KEY),
 };
 
-const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home", school: "enter the School", kitchen: "visit the Kitchen" };
+const LABELS: Record<InteractableId, string> = { bank: "enter the Bank", home: "check your Home", school: "enter the School" };
 
 export function FinanceTown() {
   const bridge = useMemo(() => new TownBridge(), []);
@@ -92,6 +94,7 @@ export function FinanceTown() {
   const brokerageClient = useBrokerage(true);
   const brokerageState = brokerageClient.state;
   // BluPeak (Plaid) rides on the same local session: locking drops its balances from the page too.
+  const schoolMarks = useSchoolMarks();
   const schoolClient = useSchool(brokerageClient.access === "unlocked", schoolOpen);
   const bankClient = useBank(mode === "manual" && brokerageClient.access === "unlocked");
   const bankState = bankClient.state;
@@ -284,7 +287,6 @@ export function FinanceTown() {
       onInteract: (id) => {
         if (id === "bank") setBankOpen(true);
         else if (id === "school") setSchoolOpen(true);
-        else if (id === "kitchen") showToast("The Kitchen will track what you eat and add up your macros. Coming soon.");
         else showToast(`Your ${homeTier === 2 ? "manor" : "cottage"}. Reach ${formatCents(HOME_UPGRADE_THRESHOLD_CENTS)} net worth to upgrade it.`);
       },
     });
@@ -318,12 +320,12 @@ export function FinanceTown() {
           </button>
         )}
         <Nameplates bridge={bridge} homeTier={milestones.homeTier} />
-        {!bankOpen && !schoolOpen && <SchoolNotice input={{ access: brokerageClient.access, states: schoolClient.states, loaded: schoolClient.loaded, loadFailed: schoolClient.loadFailed, busy: Object.values(schoolClient.busy).some(Boolean) }} onOpen={() => setSchoolOpen(true)} />}
+        {!bankOpen && !schoolOpen && <SchoolNotice input={{ access: brokerageClient.access, states: schoolClient.states, loaded: schoolClient.loaded, loadFailed: schoolClient.loadFailed, busy: Object.values(schoolClient.busy).some(Boolean), hide: (e) => !countsForReminder(e, schoolMarks.marks) }} onOpen={() => setSchoolOpen(true)} />}
         {toast && <div className="ft-toast" role="status">{toast}</div>}
       </div>
 
       {bankOpen && <BankDashboard mode={mode} manual={manual} accounts={accounts} summary={summary} transactions={mode === "demo" ? sampleTransactions : []} homeTier={milestones.homeTier} brokerage={mode === "manual" ? brokerage : undefined} history={mode === "manual" ? { load: history, unlocked: brokerageClient.access === "unlocked" } : undefined} onClose={closeBank} />}
-      {schoolOpen && <SchoolDashboard access={brokerageClient} school={schoolClient} onClose={closeSchool} />}
+      {schoolOpen && <SchoolDashboard access={brokerageClient} school={schoolClient} marks={schoolMarks} onClose={closeSchool} />}
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
-import { COLS, ROWS, TILE, WORLD_H, WORLD_W, flowerSpots, isPath, isWater } from "./layout";
-import { mulberry32 } from "./pixel";
+import { grassRGB, type RGB } from "./grass";
+import { pavingPixels } from "./paving";
+import { COLS, ROWS, TILE, WORLD_H, WORLD_W, flowerSpots, isWater, tuftSpots } from "./layout";
 
 /**
  * Optional third-party art: "Cute Fantasy Free" by Kenmi (non-commercial, no redistribution).
@@ -47,9 +48,6 @@ export function queueLicensed(scene: Phaser.Scene) {
   l.spritesheet(CF.player, url(SHEETS.player), { frameWidth: 32, frameHeight: 32 });
 }
 
-/** Our own cobblestone tile (public/sprites/cobble.png, 48x48, seamless); optional, dirt is used without it. */
-export const COBBLE = "custom_cobble";
-const COBBLE_SIZE = 48;
 
 export const probeLoaded = (scene: Phaser.Scene) => scene.textures.exists(CF.grass);
 export const licensedLoaded = (scene: Phaser.Scene) => Object.values(CF).every((k) => scene.textures.exists(k));
@@ -74,8 +72,11 @@ export function addDecorFrames(scene: Phaser.Scene) {
   for (const [name, [x, y, w, h]] of Object.entries(DECOR)) if (!tex.has(name)) tex.add(name, 0, x, y, w, h);
 }
 
-/** Frame index in Fences.png (4x4 grid of 16px): row 0, columns 1-3 are the left end, middle and right end of a rail. */
-export const FENCE_FRAME = { left: 1, mid: 2, right: 3 } as const;
+/**
+ * Frame index in Fences.png (4x4 grid of 16px). Row 0: columns 1-3 are the left end, middle and right end of a horizontal rail;
+ * column 0 holds the vertical rail (frame 4 is the straight piece); rows 1 and 3 of the grid block hold the corners.
+ */
+export const FENCE_FRAME = { tl: 5, tr: 7, l: 4, r: 4, bl: 13, b: 2, br: 15, bEndR: 3, bEndL: 1 } as const;
 
 /** Oak_Tree_Small.png is three 32x48 frames: stump, tree with shadow, tree without. Origin y puts the trunk base on the layout point. */
 export const OAK = {
@@ -123,7 +124,40 @@ export function blobTile(has: (c: number, r: number) => boolean, c: number, r: n
   return BLOB.c;
 }
 
-/** Seamless pack-grass patch for the extra terrain around the village. */
+/**
+ * The lawn: the pack grass tile's own base green, lightened and warmed slightly (a yellower, sunnier green), with our quiet
+ * variation and sparse tufts (game/grass.ts) over it. Only the lawn is adjusted, never
+ * the screen, so buildings and props keep their own colors.
+ */
+function grassBases(grass: CanvasImageSource): RGB[] {
+  const src = document.createElement("canvas");
+  src.width = TILE;
+  src.height = TILE;
+  const sctx = src.getContext("2d")!;
+  sctx.drawImage(grass, 0, 0, TILE, TILE, 0, 0, TILE, TILE);
+  const d = sctx.getImageData(0, 0, TILE, TILE).data;
+  const count = new Map<number, number>();
+  for (let i = 0; i < d.length; i += 4) {
+    const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+    count.set(k, (count.get(k) ?? 0) + 1);
+  }
+  const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0][0]; // the tile's main green
+  return [[Math.min(255, (top >> 16) + 16), Math.min(255, ((top >> 8) & 255) + 12), Math.max(0, (top & 255) - 4)]];
+}
+
+/** One 16px lawn tile at world tile (c, r), as ImageData. `wrap` makes the pattern repeat every that many pixels. */
+function lawnTile(ctx: CanvasRenderingContext2D, bases: RGB[], c: number, r: number, wrap = 0): ImageData {
+  const out = ctx.createImageData(TILE, TILE);
+  const base = bases[0];
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const [R, G, B] = grassRGB(c * TILE + x, r * TILE + y, base, wrap);
+    const o = (y * TILE + x) * 4;
+    out.data[o] = R; out.data[o + 1] = G; out.data[o + 2] = B; out.data[o + 3] = 255;
+  }
+  return out;
+}
+
+/** Seamless lawn patch for the extra terrain around the village. */
 export function drawLicensedFill(scene: Phaser.Scene) {
   if (scene.textures.exists("ground_fill")) scene.textures.remove("ground_fill");
   const tex = scene.textures.createCanvas("ground_fill", 64, 64);
@@ -131,7 +165,8 @@ export function drawLicensedFill(scene: Phaser.Scene) {
   const ctx = tex.getContext();
   ctx.imageSmoothingEnabled = false;
   const grass = scene.textures.get(CF.grass).getSourceImage() as CanvasImageSource;
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) ctx.drawImage(grass, 0, 0, TILE, TILE, c * TILE, r * TILE, TILE, TILE);
+  const bases = grassBases(grass);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) ctx.putImageData(lawnTile(ctx, bases, c, r, 64), c * TILE, r * TILE);
   tex.refresh();
 }
 
@@ -142,60 +177,42 @@ export function drawLicensedGround(scene: Phaser.Scene) {
   const ctx = tex.getContext();
   ctx.imageSmoothingEnabled = false;
   const img = (key: string) => scene.textures.get(key).getSourceImage() as CanvasImageSource;
-  const grass = img(CF.grass), path = img(CF.path), water = img(CF.water), decor = img(CF.decor);
-  const rng = mulberry32(42);
-  const pixels = (src: CanvasImageSource, w: number, h: number) => {
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const cx = c.getContext("2d")!;
-    cx.drawImage(src, 0, 0);
-    return cx.getImageData(0, 0, w, h).data;
-  };
-  // Path tiles keep the pack's bushy outline and shape; only their dirt-colored pixels become cobblestone.
-  const cobble = scene.textures.exists(COBBLE) ? pixels(img(COBBLE), COBBLE_SIZE, COBBLE_SIZE) : null;
-  const pathPx = cobble ? pixels(path, 48, 96) : null;
-  const nearDirt = (r: number, g: number, b: number) =>
-    [[228, 166, 114], [184, 111, 80]].some(([R, G, B]) => Math.abs(r - R) + Math.abs(g - G) + Math.abs(b - B) < 45);
-  const cobbleTile = (tc: number, tr: number, c: number, r: number) => {
-    const out = ctx.createImageData(TILE, TILE);
-    for (let py = 0; py < TILE; py++) {
-      for (let px = 0; px < TILE; px++) {
-        const si = ((tr * TILE + py) * 48 + tc * TILE + px) * 4;
-        const o = (py * TILE + px) * 4;
-        const useCobble = nearDirt(pathPx![si], pathPx![si + 1], pathPx![si + 2]);
-        const ci = ((((r * TILE + py) % COBBLE_SIZE) * COBBLE_SIZE) + ((c * TILE + px) % COBBLE_SIZE)) * 4;
-        const from = useCobble ? cobble! : pathPx!;
-        const fi = useCobble ? ci : si;
-        out.data[o] = from[fi];
-        out.data[o + 1] = from[fi + 1];
-        out.data[o + 2] = from[fi + 2];
-        out.data[o + 3] = 255;
-      }
-    }
-    ctx.putImageData(out, c * TILE, r * TILE);
-  };
-
-  const tile = (src: CanvasImageSource, tc: number, tr: number, c: number, r: number) =>
-    ctx.drawImage(src, tc * TILE, tr * TILE, TILE, TILE, c * TILE, r * TILE, TILE, TILE);
-
+  const water = img(CF.water), decor = img(CF.decor);
+  const bases = grassBases(img(CF.grass));
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      if (isPath(c, r)) {
-        const [tc, tr] = blobTile(isPath, c, r);
-        if (cobble) cobbleTile(tc, tr, c, r);
-        // an occasional pebble tile on open dirt path (sheet row 5)
-        else if (tc === 1 && tr === 1 && rng() < 0.12) tile(path, Math.floor(rng() * 3), 5, c, r);
-        else tile(path, tc, tr, c, r);
-      } else if (isWater(c, r)) {
+      if (isWater(c, r)) {
+        // the pond's tiles carry the pack's own flat green around the bank: lay our lawn under them and keep only the water
+        // and bank pixels, so no flat squares show around the pond
+        ctx.putImageData(lawnTile(ctx, bases, c, r), c * TILE, r * TILE);
         const [tc, tr] = blobTile(isWater, c, r);
-        tile(water, tc, tr, c, r);
+        const wt = document.createElement("canvas");
+        wt.width = TILE;
+        wt.height = TILE;
+        const wx = wt.getContext("2d")!;
+        wx.drawImage(water, tc * TILE, tr * TILE, TILE, TILE, 0, 0, TILE, TILE);
+        const wd = wx.getImageData(0, 0, TILE, TILE);
+        for (let i = 0; i < wd.data.length; i += 4) if (Math.abs(wd.data[i] - 62) + Math.abs(wd.data[i + 1] - 137) + Math.abs(wd.data[i + 2] - 72) < 12) wd.data[i + 3] = 0;
+        wx.putImageData(wd, 0, 0);
+        ctx.drawImage(wt, c * TILE, r * TILE);
       } else {
-        tile(grass, 0, 0, c, r);
+        ctx.putImageData(lawnTile(ctx, bases, c, r), c * TILE, r * TILE);
       }
     }
   }
 
+  // paving over the lawn: our own stone and edge (game/paving.ts); the pack's path tiles are not used
+  const pav = document.createElement("canvas");
+  pav.width = WORLD_W;
+  pav.height = WORLD_H;
+  pav.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(pavingPixels()), WORLD_W, WORLD_H), 0, 0);
+  ctx.drawImage(pav, 0, 0);
+
+  // sparse grass tufts across the meadow
+  for (const { x, y, small } of tuftSpots()) {
+    const [sx, sy, w, h] = DECOR[small ? "tuftSmall" : "tuft"];
+    ctx.drawImage(decor, sx, sy, w, h, x - (w >> 1), y - h, w, h);
+  }
   // flowers and tufts in patches by the doors, pond and trail
   const spots: DecorName[] = ["tuft", "tuftSmall", "flowerWhite", "flowerYellow", "flowerPink", "flowerGold", "tuft"];
   for (const { x, y, roll } of flowerSpots()) {

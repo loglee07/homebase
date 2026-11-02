@@ -29,6 +29,8 @@ export interface SchoolEvent {
    */
   dueTimeUnknown: boolean;
   location: string | null;
+  /** Canvas course number from the feed link (`course_<n>`), a stable course identity. Null when the link has none. */
+  courseId?: string | null;
   /** The original Canvas link, only when it is an https link on this school's own host. */
   url: string | null;
   cancelled: boolean;
@@ -107,9 +109,9 @@ export function sortEvents(events: readonly SchoolEvent[]): SchoolEvent[] {
   );
 }
 
-/** What to print in the time column. Never invents a deadline. */
+/** What to print in the time column. Never invents a deadline: an assignment with a date but no time prints nothing. */
 export const timeLabel = (e: SchoolEvent, fmt: (iso: string) => string): string =>
-  e.dueTimeUnknown ? "Check Canvas for due time" : e.allDay ? "All day" : fmt(e.start);
+  e.dueTimeUnknown ? "" : e.allDay ? "All day" : fmt(e.start);
 
 export const eventsOn = (events: readonly SchoolEvent[], day: string): SchoolEvent[] => sortEvents(events.filter((e) => occursOn(e, day)));
 
@@ -163,14 +165,14 @@ export interface TownNotice {
  * Summary for the town screen, from calendars already in memory. Never fetches. Pass only states the server has really
  * reported: an empty list means "not read yet", which the caller must treat as loading, never as "not set up".
  */
-export function townNotice(states: readonly SchoolState[], now: Date): TownNotice {
+export function townNotice(states: readonly SchoolState[], now: Date, hide?: (e: SchoolEvent) => boolean): TownNotice {
   const configured = states.filter((s) => s.configured);
   if (configured.length === 0) return { status: "none", count: 0, next: null, stale: false };
   const loaded = configured.filter((s) => s.updatedAt);
   const stale = configured.some((s) => s.stale || s.lastError !== null);
   if (loaded.length === 0) return { status: stale ? "unavailable" : "not_loaded", count: 0, next: null, stale };
   const today = localDayKey(now);
-  const live = combine(loaded).filter((e) => !e.cancelled);
+  const live = combine(loaded).filter((e) => !e.cancelled && !hide?.(e)); // items the user marked or ignored are not counted
   const ahead = live.filter((e) => (e.allDay ? startDay(e) >= today : new Date(e.start).getTime() >= now.getTime()));
   const firstDay = ahead.map(startDay).sort()[0];
   const next = firstDay === undefined ? null : sortEvents(ahead.filter((e) => startDay(e) === firstDay))[0];
@@ -189,6 +191,8 @@ export interface NoticeInput {
   /** A feed fetch is running for some school. */
   busy: boolean;
   states: readonly SchoolState[];
+  /** Items the user marked done or ignored: left out of the count and "next". */
+  hide?: (e: SchoolEvent) => boolean;
 }
 
 /** Which message the town notice shows. Distinguishes every reason there is no count, so "not set up" is never a guess. */
@@ -198,7 +202,7 @@ export function noticeKind(i: NoticeInput, now: Date): { kind: NoticeKind; notic
   if (i.access === "locked") return { kind: "locked", notice: null };
   if (i.loadFailed && !i.loaded) return { kind: "load_failed", notice: null };
   if (!i.loaded) return { kind: "loading", notice: null };
-  const notice = townNotice(i.states, now);
+  const notice = townNotice(i.states, now, i.hide);
   if (notice.status === "none") return { kind: "none", notice };
   if (notice.status === "ok") return { kind: "ok", notice };
   if (i.busy) return { kind: "refreshing", notice };

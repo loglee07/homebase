@@ -1,6 +1,6 @@
 # Homebase
 
-A cozy pixel-art town for your finances and daily tools. Walk a character into buildings to open them: the Bank (accounts and transactions), the School (Canvas calendars), the Home (it upgrades when net worth passes $100,000) and a placeholder Kitchen. Runs locally in your desktop browser. See `CLAUDE.md` and `docs/progress.md`.
+A cozy pixel-art town for your finances and daily tools. Walk a character into buildings to open them: the Bank (accounts and transactions), the School (Canvas calendars), the Home (it upgrades when net worth passes $100,000). Runs locally in your desktop browser. See `CLAUDE.md` and `docs/progress.md`.
 
 (Renamed from Finance Town. The folder, package name and `finance-town:*` storage keys keep the old name on purpose so saved data keeps working.)
 

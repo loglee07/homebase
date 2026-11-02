@@ -11,7 +11,8 @@ function when(e: SchoolEvent, today: string): string {
   const day = startDay(e);
   const dayText =
     day === today ? "Today" : day === addDays(today, 1) ? "Tomorrow" : new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  return `${dayText}, ${timeLabel(e, fmtTime)}`;
+  const t = timeLabel(e, fmtTime);
+  return t ? `${dayText}, ${t}` : dayText;
 }
 
 // Per-viewer convenience only: whether the notice is minimized to its badge. Holds no calendar data.
@@ -56,8 +57,8 @@ export function SchoolNotice({ input, onOpen }: { input: NoticeInput; onOpen: ()
     moveFocus.current = null;
   }, [minimized]);
 
-  const { states, access, loaded, loadFailed, busy } = input;
-  const resolved = useMemo(() => (now ? noticeKind({ states, access, loaded, loadFailed, busy }, now) : null), [states, access, loaded, loadFailed, busy, now]);
+  const { states, access, loaded, loadFailed, busy, hide } = input;
+  const resolved = useMemo(() => (now ? noticeKind({ states, access, loaded, loadFailed, busy, hide }, now) : null), [states, access, loaded, loadFailed, busy, hide, now]);
   if (!now || !resolved) return null;
   const { kind, notice } = resolved;
   const today = localDayKey(now);
@@ -76,7 +77,7 @@ export function SchoolNotice({ input, onOpen }: { input: NoticeInput; onOpen: ()
   let line: string;
   let sub: string;
   if (kind === "ok" && notice) {
-    line = `${notice.count} calendar ${notice.count === 1 ? "item" : "items"} today`;
+    line = `${notice.count} unchecked calendar ${notice.count === 1 ? "item" : "items"} today`;
     sub = notice.next ? `Next: ${notice.next.title} · ${SCHOOL_LABEL[notice.next.school]} · ${when(notice.next, today)}` : "Nothing coming up";
   } else {
     [line, sub] = text[kind as Exclude<typeof kind, "ok">];

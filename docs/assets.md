@@ -46,7 +46,7 @@ Matching the pack means 16px tiles, soft dark outlines, and a top-down 3/4 view 
 | Mailbox | 10x16 | bottom-center, (88,152) | x85 y148 w6 h4 | |
 | Blossom tree | 32x48 frame, same layout as `Oak_Tree_Small.png` frame 1 | trunk base | w8 h5 at trunk base | Currently shows a plain oak |
 | Autumn tree | 32x48 frame, same as above | trunk base | w8 h5 | Currently shows a plain oak |
-| Path surface | done: custom `public/sprites/cobble.png` (48x48 seamless) | world-aligned tile | none | With the pack, path tiles keep the pack's bushy edges and only their dirt pixels become cobblestone (`drawLicensedGround`); without the pack the path stays dirt |
+| Path surface | done: code data `game/pavingData.ts` (64x64 seamless, palette-indexed) + `game/pathMasks.ts` (the pack's 13 path tile shapes, one bit per pixel) | world-aligned | none | Both art modes draw every path and the plaza from `game/paving.ts`: stone from the texture, shape from the masks smoothed across tile joins, a 1px muted rim and rare tiny tufts. The pack's path tiles are not used at runtime |
 | Spark / smoke puff (optional) | 7x7 / 6x6 | center | none | Effects only |
 
 Note on `home_1.png`: **temporary, high-detail asset.** It is nearest-sampled from AI-generated art (~7.6px blocks), so every pixel is a true source color with no blended edges, but it has ~2,700 colors versus the pack's roughly 10 per sprite. Its replacement should be designed natively for the existing 64x72 canvas (bottom-center anchor, same footprint) with a small palette. No further renderer changes or automatic palette reduction are planned.

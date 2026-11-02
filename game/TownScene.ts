@@ -3,18 +3,18 @@ import type { TownBridge, InteractableId } from "./bridge";
 import type { HomeTier } from "@/lib/milestones";
 import { drawBuildings, drawGround, drawGroundFill, drawProps, type Dir } from "./art";
 import {
-  CF, COBBLE, FENCE_FRAME, OAK, PLAYER_ORIGIN_Y, addDecorFrames, drawLicensedFill, drawLicensedGround, licensedLoaded, playerFrame, probeLoaded,
+  CF, FENCE_FRAME, OAK, PLAYER_ORIGIN_Y, addDecorFrames, drawLicensedFill, drawLicensedGround, licensedLoaded, playerFrame, probeLoaded,
   queueLicensed, queueProbe,
 } from "./licensed";
 import {
-  BANK_BASE_Y, BANK_CENTER_X, BENCHES, BUSHES, HOME_BASE_Y, KITCHEN_BASE_Y, KITCHEN_CENTER_X, SCHOOL_BASE_Y, SCHOOL_CENTER_X, FENCES, FOUNTAIN, HOME_CENTER_X,
-  HOME_FOOTPRINT, baseOf, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, buildPadTrees, villageSolids, type Rect, type TreeSpec,
+  BANK_BASE_Y, BANK_CENTER_X, BENCHES, BUSHES, shrubSpots, HOME_BASE_Y, SCHOOL_BASE_Y, SCHOOL_CENTER_X, FENCES, FOUNTAIN, HOME_CENTER_X,
+  HOME_FOOTPRINT, SIZE_SCALE, baseOf, INTERACT_ZONES, LAMPS, MAILBOX, ROCKS, SPAWN, TREES, WORLD_H, WORLD_W, buildPadTrees, villageSolids, type Rect, type TreeSpec,
 } from "./layout";
 import { addBuildingShadow, addContactShadow, SHADOW_DEPTH } from "./shadows";
 import { EXT_H, EXT_W, PAD_X, PAD_Y, sameView, viewFor } from "./viewport";
 
 /** texture key -> file in public/sprites */
-const CUSTOM_SPRITES = [{ key: "home_1", file: "home_1" }, { key: "home_2", file: "home_2" }, { key: "bank", file: "bank" }, { key: "school", file: "school" }, { key: "bench", file: "bench" }, { key: "kitchen", file: "kitchen" }, { key: "fountain", file: "fountain" },
+const CUSTOM_SPRITES = [{ key: "home_1", file: "home_1" }, { key: "home_2", file: "home_2" }, { key: "bank", file: "bank" }, { key: "school", file: "school" }, { key: "bench", file: "bench" }, ...["", "_s", "_l"].flatMap((z) => ["pine", "birch"].map((k) => ({ key: `tree_${k}${z}`, file: `tree_${k}${z}` }))), { key: "fountain", file: "fountain" },
   ...[0, 1, 2, 3].map((i) => ({ key: `fountain_${i}`, file: `fountain_${i}` }))];
 const SPEED = 62;
 const WALK_FRAMES = [1, 0, 2, 0];
@@ -43,7 +43,6 @@ export class TownScene extends Phaser.Scene {
   preload() {
     queueProbe(this);
     for (const k of CUSTOM_SPRITES) this.load.image(`custom_${k.key}`, `/sprites/${k.file}.png`);
-    this.load.image(COBBLE, "/sprites/cobble.png");
   }
 
   create() {
@@ -91,18 +90,20 @@ export class TownScene extends Phaser.Scene {
     }
     for (const b of BENCHES) this.add.image(b.x, b.y + 1, "bench").setOrigin(0.5, 1).setDepth(b.y);
     this.add.image(MAILBOX.x, MAILBOX.y + 1, "mailbox").setOrigin(0.5, 1).setDepth(MAILBOX.y);
-    FENCES.forEach((f, i) => {
+    for (const f of FENCES) {
+      const side = f.part === "l" || f.part === "r";
       if (this.licensed) {
-        this.add.image(f.x, f.y + 1, CF.fences, i % 2 ? FENCE_FRAME.right : FENCE_FRAME.left).setOrigin(0.5, 13 / 16).setDepth(f.y);
+        this.add.image(f.x, f.y + 1, CF.fences, FENCE_FRAME[f.part]).setOrigin(0.5, 13 / 16).setDepth(f.y);
       } else {
-        this.add.image(f.x, f.y + 1, "fence").setOrigin(0.5, 1).setDepth(f.y);
+        this.add.image(f.x, f.y + 1, side ? "fence_side" : "fence").setOrigin(0.5, 1).setDepth(f.y);
       }
-    });
+    }
     ROCKS.forEach((r, i) => {
       if (this.licensed) this.add.image(r.x, r.y, CF.decor, i % 2 ? "rockSmall" : "rockLarge").setOrigin(0.5, 1).setDepth(r.y);
       else this.add.image(r.x, r.y, "rock").setOrigin(0.5, 1).setDepth(r.y);
     });
     for (const b of BUSHES) this.bush(b.x, b.y);
+    for (const b of shrubSpots()) this.bush(b.x, b.y + 1);
 
     addContactShadow(this, FOUNTAIN.x + 1, FOUNTAIN.y - 3, 19, 5);
     const fountain = this.add.image(FOUNTAIN.x, FOUNTAIN.y + 1, "fountain").setOrigin(0.5, 1).setDepth(FOUNTAIN.y);
@@ -114,11 +115,8 @@ export class TownScene extends Phaser.Scene {
 
     addBuildingShadow(this, "bank", BANK_CENTER_X, BANK_BASE_Y);
     addBuildingShadow(this, "school", SCHOOL_CENTER_X, SCHOOL_BASE_Y);
-    addBuildingShadow(this, this.textures.exists("kitchen") ? "kitchen" : "bank", KITCHEN_CENTER_X, KITCHEN_BASE_Y);
     this.add.image(BANK_CENTER_X, BANK_BASE_Y + 1, "bank").setOrigin(0.5, 1).setDepth(BANK_BASE_Y);
     this.add.image(SCHOOL_CENTER_X, SCHOOL_BASE_Y + 1, "school").setOrigin(0.5, 1).setDepth(SCHOOL_BASE_Y);
-    // the Kitchen is a placeholder building: the bank's shape with a tile roof, until it has its own art
-    this.add.image(KITCHEN_CENTER_X, KITCHEN_BASE_Y + 1, this.textures.exists("kitchen") ? "kitchen" : "bank").setOrigin(0.5, 1).setDepth(KITCHEN_BASE_Y);
     for (const s of villageSolids(this.licensed)) this.addBlock(this.blockers, s);
 
     this.home = this.add.image(HOME_CENTER_X, HOME_BASE_Y + 1, "home_1").setOrigin(0.5, 1).setDepth(HOME_BASE_Y);
@@ -163,14 +161,19 @@ export class TownScene extends Phaser.Scene {
   }
 
   private addTree(t: TreeSpec) {
+    const size = t.size ?? "m";
+    const k = SIZE_SCALE[size];
     // the pack's shaded oak frame carries its own shadow; every other tree gets one at its trunk
     const baked = this.licensed && (t.kind === "oak2" || t.kind === "blossom");
-    if (!baked) addContactShadow(this, t.x, t.y + 1, 11, 4);
-    if (this.licensed) {
+    if (!baked) addContactShadow(this, t.x, t.y + 1, Math.round((t.kind === "birch" ? 8 : 11) * k), 4);
+    if (this.licensed && t.kind !== "pine" && t.kind !== "birch") {
       const oak = t.kind === "oak2" || t.kind === "blossom" ? OAK.shaded : OAK.plain;
-      this.add.image(t.x, t.y + 1, CF.oak, oak.frame).setOrigin(0.5, oak.originY).setDepth(t.y);
+      this.add.image(t.x, t.y + 1, CF.oak, oak.frame).setOrigin(0.5, oak.originY).setDepth(t.y).setScale(k);
     } else {
-      this.add.image(t.x, t.y + 1, `tree_${t.kind}`).setOrigin(0.5, 1).setDepth(t.y);
+      // pines and birches have a sprite per size; oaks (procedural) are scaled a little
+      const own = t.kind === "pine" || t.kind === "birch";
+      const key = own && size !== "m" && this.textures.exists(`tree_${t.kind}_${size}`) ? `tree_${t.kind}_${size}` : `tree_${t.kind}`;
+      this.add.image(t.x, t.y + 1, key).setOrigin(0.5, 1).setDepth(t.y).setScale(own ? 1 : k);
     }
   }
 

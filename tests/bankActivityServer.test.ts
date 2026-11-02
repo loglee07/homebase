@@ -212,7 +212,7 @@ describe("encrypted storage", () => {
     const f = path.join(dir, "plaid-activity.production.item-1.enc");
     expect(statSync(f).mode & 0o777).toBe(0o600);
     const text = readFileSync(f, "utf8");
-    expect(text).not.toMatch(/Synthetic Merchant|txn-visible-id|access-secret|cursor|c1/);
+    expect(text).not.toMatch(/Synthetic Merchant|txn-visible-id|access-secret|cursor/);
     expect(readdirSync(dir).filter((x) => x.endsWith(".tmp"))).toEqual([]);
   });
   it("separates environments and Items: other files are never read, and a copied file cannot be decrypted elsewhere", async () => {

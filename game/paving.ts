@@ -1,0 +1,187 @@
+// Paving for every path and the plaza, in both art modes: stonework (game/pavingData.ts) cut to the path's shape, with a
+// smooth stone-to-grass boundary. The stone, the shape and the edge are three separate things: the stone is sampled by world
+// position, the shape comes from the pack's tile masks (game/pathMasks.ts) with their spiky fringe discarded, and the edge is
+// a thin muted rim under grass clumps that overlap the outermost stones. Pure: no Phaser, no DOM, no pack needed at runtime.
+import { CLUMPS, CLUMP_H, SMALL_CLUMPS } from "./grassClumps";
+import { PATH_MASKS } from "./pathMasks";
+import { PAVING_PALETTE, PAVING_ROWS, PAVING_SIZE } from "./pavingData";
+import { COLS, ROWS, TILE, hash01, inPlazaShape, isPath, isPlaza } from "./layout";
+
+export { PAVING_SIZE };
+const CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** The stonework colour at a world pixel; repeats every PAVING_SIZE pixels on both axes. */
+export function pavingAt(x: number, y: number): [number, number, number] {
+  const row = PAVING_ROWS[((y % PAVING_SIZE) + PAVING_SIZE) % PAVING_SIZE];
+  return PAVING_PALETTE[CHARS.indexOf(row[((x % PAVING_SIZE) + PAVING_SIZE) % PAVING_SIZE])];
+}
+
+/** The thin contact edge: a muted grey-green one pixel line on the stone's outermost pixels. */
+export const RIM: [number, number, number] = [122, 130, 114];
+/** The grass fringe along every edge, as in the reference: a dark root, a mid body, a light tip. */
+export const FRINGE: [number, number, number][] = [[44, 92, 46], [64, 120, 52], [104, 158, 66]];
+
+/** Which of the pack's 13 tile shapes a cell uses, from whether its neighbours are paved (same rules as the pack's autotiling). */
+export function maskName(has: (c: number, r: number) => boolean, c: number, r: number): string {
+  const n = has(c, r - 1), s = has(c, r + 1), w = has(c - 1, r), e = has(c + 1, r);
+  if (!n && !w) return "tl";
+  if (!n && !e) return "tr";
+  if (!s && !w) return "bl";
+  if (!s && !e) return "br";
+  if (!n) return "t";
+  if (!s) return "b";
+  if (!w) return "l";
+  if (!e) return "r";
+  if (!has(c + 1, r + 1)) return "innerSE";
+  if (!has(c - 1, r + 1)) return "innerSW";
+  if (!has(c + 1, r - 1)) return "innerNE";
+  if (!has(c - 1, r - 1)) return "innerNW";
+  return "c";
+}
+
+/** A smooth 1-D value noise in [0, 1), lattice `scale` pixels. */
+function noise1(seed: number, v: number, scale: number): number {
+  const i = Math.floor(v / scale), f = v / scale - i, t = f * f * (3 - 2 * f);
+  return hash01(seed * 53 + i, seed * 7 + 19) * (1 - t) + hash01(seed * 53 + i + 1, seed * 7 + 19) * t;
+}
+
+interface Placed {
+  sprite: number;
+  /** Top and bottom edges: the sprite column standing here. Left and right edges: the sprite row at this height. */
+  at: number;
+  /** Overlap: top edge, rows the base sinks into the stone (-1 stays on the lawn); bottom edge, extra rows of lawn under the roots; sides, columns over the stone. */
+  over: number;
+  flip: boolean;
+}
+const profiles = new Map<number, (Placed | null)[]>();
+/**
+ * The tufts along one side of an edge (0 above, 1 below, 2 left, 3 right of the stone), by position along it: a pure function,
+ * so a curve keeps one rhythm. A slow noise swings between fuller stretches (tufts nearly touching) and exposed ones (a small tuft
+ * now and then); each tuft is one of the hand-drawn sprites in game/grassClumps.ts, mirrored or not, with a varied amount of it
+ * over the stone. Tufts are always upright: on a left or right edge a tuft takes CLUMP_H rows of the edge and stands beside the
+ * stone, rather than being turned to face it.
+ */
+function edgeProfile(side: number): (Placed | null)[] {
+  const cached = profiles.get(side);
+  if (cached) return cached;
+  const vertical = side >= 2;
+  const N = 640, out: (Placed | null)[] = new Array(N).fill(null);
+  let pos = Math.floor(hash01(side * 5 + 1, 3) * 6);
+  for (let i = 0; pos < N - 12; i++) {
+    const cover = 0.25 + 0.75 * noise1(side + 1, pos, 22); // 0 bare .. 1 full
+    const pick = hash01(side * 31 + i, 17);
+    const sprite = cover < 0.3 ? SMALL_CLUMPS[Math.floor(pick * SMALL_CLUMPS.length)] : Math.floor(pick * CLUMPS.length);
+    const w = CLUMPS[sprite][0].length;
+    const flip = hash01(side * 17 + i, 41) < 0.5;
+    const r = hash01(side * 19 + i, 7);
+    const over = side === 0 ? Math.floor(r * 3) - 1 : side === 1 ? (r < 0.65 ? 0 : 1) : Math.floor(r * 3);
+    const span = vertical ? CLUMP_H : w;
+    for (let k = 0; k < span; k++) if (pos + k < N) out[pos + k] = { sprite, at: vertical ? k : flip ? w - 1 - k : k, over, flip };
+    const j = hash01(side * 13 + i, 29);
+    pos += span + (cover > 0.5 ? Math.floor(j * 2) : cover > 0.35 ? 1 + Math.floor(j * 2) : 3 + Math.floor(j * 5));
+  }
+  profiles.set(side, out);
+  return out;
+}
+
+/**
+ * The paved shape (cols*TILE x rows*TILE, 1 = stone): the pack's tile masks assembled by its autotile rules, the plaza disc
+ * added, then smoothed. Cells past the edge count as the nearest cell inside, so a path that leaves the map just keeps going.
+ * The grass drawn over the edge never changes this shape.
+ */
+export function pavingMask(
+  has: (c: number, r: number) => boolean,
+  cols: number,
+  rows: number,
+  /** Cells whose shape is not a tile mask but a clipped disc (the plaza), and that disc as a pixel test. */
+  disc?: { cell: (c: number, r: number) => boolean; at: (x: number, y: number) => boolean },
+): Uint8Array {
+  const W = cols * TILE, H = rows * TILE;
+  const inside = (c: number, r: number) => has(Math.max(0, Math.min(cols - 1, c)), Math.max(0, Math.min(rows - 1, r)));
+  // 1. the shape: each cell's tile mask, fringe already dropped
+  let mask = new Uint8Array(W * H);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (!has(c, r) || disc?.cell(c, r)) continue;
+    const m = PATH_MASKS[maskName(inside, c, r)];
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) if ((m[y] >> (15 - x)) & 1) mask[(r * TILE + y) * W + c * TILE + x] = 1;
+  }
+  if (disc) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (disc.at(x, y)) mask[y * W + x] = 1;
+  // 2. smooth the outline across tile joins: two majority passes over a 5x5 window (a pixel follows most of its
+  //    neighbourhood). The pack's masks wobble by a pixel or two along every edge; this irons that into a straight, even
+  //    boundary while the outer and inner corners stay rounded (they just lose their last pixel of roughness).
+  const at = (m: Uint8Array, x: number, y: number) => m[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+  for (let pass = 0; pass < 2; pass++) {
+    const next = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let n = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) n += at(mask, x + dx, y + dy);
+      next[y * W + x] = n >= 13 ? 1 : 0;
+    }
+    mask = next;
+  }
+  return mask;
+}
+
+/**
+ * RGBA (cols*TILE x rows*TILE) of the paving for a set of path cells. Alpha is 0 on the lawn (the caller's own grass shows
+ * through) and 255 on stone, rim and grass clumps; nothing is blended.
+ */
+export function pavingLayer(
+  has: (c: number, r: number) => boolean,
+  cols: number,
+  rows: number,
+  disc?: { cell: (c: number, r: number) => boolean; at: (x: number, y: number) => boolean },
+): Uint8ClampedArray {
+  const W = cols * TILE, H = rows * TILE;
+  const mask = pavingMask(has, cols, rows, disc);
+  // 3. paint the stone with a one pixel rim
+  const out = new Uint8ClampedArray(W * H * 4);
+  const put = (x: number, y: number, c: [number, number, number]) => {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const i = (y * W + x) * 4;
+    out[i] = c[0]; out[i + 1] = c[1]; out[i + 2] = c[2]; out[i + 3] = 255;
+  };
+  const stone = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && mask[y * W + x] === 1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!stone(x, y)) continue;
+    const edge = !stone(x - 1, y) || !stone(x + 1, y) || !stone(x, y - 1) || !stone(x, y + 1);
+    put(x, y, edge ? RIM : pavingAt(x, y));
+  }
+  // 4. grass over the edge, drawn on top and independent of the shape: clumps grow from the lawn and cover the outermost stones
+  //    by a pixel or three (see `edgeProfile`). The stone boundary itself is untouched.
+  const grass = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && !stone(x, y);
+  const DIRS: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]]; // the lawn side of the edge: above, below, left, right
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!stone(x, y)) continue;
+    const di = DIRS.findIndex(([dx, dy]) => grass(x + dx, y + dy));
+    if (di < 0) continue;
+    const along = di <= 1 ? x : y;
+    const placed = edgeProfile(di)[along];
+    if (!placed) continue;
+    const rows = CLUMPS[placed.sprite], w = rows[0].length;
+    const ch = (row: number, col: number) => rows[row]?.[placed.flip ? w - 1 - col : col] ?? ".";
+    const paint = (px: number, py: number, c: string) => put(px, py, FRINGE[c === "d" ? 0 : c === "m" ? 1 : 2]);
+    if (di <= 1) {
+      // top or bottom edge: the tuft stands upright on `baseY`, in the column `at`
+      const baseY = di === 0 ? y + placed.over : y + 1 + placed.over;
+      for (let r = 0; r < CLUMP_H; r++) {
+        const c = rows[r][placed.at];
+        if (c !== ".") paint(x, baseY - (CLUMP_H - 1 - r), c);
+      }
+    } else {
+      // left or right edge: this row of the tuft, beside the stone with `over` columns on it
+      for (let c = 0; c < w; c++) {
+        const k = ch(placed.at, c);
+        if (k === ".") continue;
+        paint(di === 2 ? x + placed.over - w + c : x - placed.over + 1 + c, y, k);
+      }
+    }
+  }
+  return out;
+}
+
+let world: Uint8ClampedArray | null = null;
+/** The paving for the whole village, built once. */
+export function pavingPixels(): Uint8ClampedArray {
+  return (world ??= pavingLayer(isPath, COLS, ROWS, { cell: isPlaza, at: inPlazaShape }));
+}

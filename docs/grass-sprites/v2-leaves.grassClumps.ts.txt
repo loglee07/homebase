@@ -1,0 +1,48 @@
+// Hand-drawn grass clusters for the cobblestone edge. Each sprite is five rows of pixels, drawn the way grass grows out of the lawn
+// onto the outermost stones: the dark roots stand on the lawn (rows 0-1, above the stone's first pixel row, row 2), and the thin
+// leaves run down over the stone to a lit tip, two to four per cluster, uneven in length and leaning a pixel here and there.
+// d = dark root, m = mid leaf, l = lit tip, . = nothing. Same palette as the lawn (FRINGE in paving.ts). Placement, mirroring and
+// overlap depth are chosen in paving.ts.
+export const CLUMP_ROWS_ABOVE = 2; // rows before the stone's first row
+
+export const CLUMPS: string[][] = [
+  // three leaves, the middle one long
+  ["d.d..",
+   "m.m.d",
+   "l.m.m",
+   "..m.l",
+   "..l.."],
+  // two leaves, one leaning right
+  ["d...",
+   "m..d",
+   ".m.l",
+   ".l..",
+   "...."],
+  // three leaves, one leaning left
+  ["d.d..d",
+   "m.m..m",
+   "l.m.m.",
+   "..l.l.",
+   "......"],
+  // short pair
+  ["d..",
+   "m.d",
+   "l.l",
+   "...",
+   "..."],
+  // a single leaf
+  ["d",
+   "m",
+   "m",
+   "l",
+   "."],
+  // two leaves far apart, one deep
+  [".d..d",
+   ".m..m",
+   ".m..l",
+   ".m...",
+   ".l..."],
+];
+
+/** Sprites small enough to stand alone in a bare stretch. */
+export const SMALL_CLUMPS = [1, 3, 4];

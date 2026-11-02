@@ -1,6 +1,8 @@
 import type Phaser from "phaser";
+import { grassRGB, type RGB } from "./grass";
+import { pavingPixels } from "./paving";
 import { makeTexture, mulberry32, type Painter } from "./pixel";
-import { COLS, FOUNTAIN, ROWS, TILE, POND, POND_SPOTS, WORLD_H, WORLD_W, inPond, isPath, isPlaza, flowerSpots, BUSHES, type TreeKind } from "./layout";
+import { COLS, FOUNTAIN, ROWS, TILE, POND, POND_SPOTS, WORLD_H, WORLD_W, inPond, flowerSpots, tuftSpots, BUSHES, type TreeKind } from "./layout";
 
 const OUT = "#3a2a1f";
 const WOOD = "#7a4a24";
@@ -8,30 +10,41 @@ const WOOD_D = "#5a3718";
 const GLASS = "#8fd0f0";
 
 // ---------- ground ----------
-const GRASS = ["#6dbb4a", "#66b445", "#72c14f"];
-const SAND = ["#e0c28f", "#d9ba85", "#e5c997"];
+// One quiet mid-green; the soft variation and tufts come from game/grass.ts.
+const GRASS: RGB = [127, 198, 86];
+const hexOf = ([r, g, b]: RGB) => `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+/** One 16px lawn tile in blade texture (game/grass.ts); `wrap` repeats the pattern seamlessly every that many pixels. */
+function lawn(g: Painter, c: number, r: number, wrap = 0) {
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) g.p(c * TILE + x, r * TILE + y, hexOf(grassRGB(c * TILE + x, r * TILE + y, GRASS, wrap)));
+}
 
 export function drawGround(scene: Phaser.Scene) {
-  const rng = mulberry32(42);
   makeTexture(scene, "ground", WORLD_W, WORLD_H, (g) => {
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        const x = c * TILE;
-        const y = r * TILE;
-        if (isPath(c, r)) {
-          drawPathTile(g, c, r, x, y, rng);
-        } else {
-          g.r(x, y, TILE, TILE, GRASS[Math.floor(rng() * 3)]);
-          for (let i = 0; i < 4; i++) {
-            const px = x + Math.floor(rng() * 15);
-            const py = y + Math.floor(rng() * 14);
-            g.p(px, py, "#5aa43c");
-            g.p(px + 1, py - 1, "#86d062");
-          }
-        }
+        lawn(g, c, r);
       }
     }
+    // paving over the lawn (shared with the licensed-art mode): stone, thin edge, odd tuft
+    const pav = pavingPixels(), hex = new Map<number, string>();
+    for (let i = 0; i < WORLD_W * WORLD_H; i++) {
+      if (!pav[i * 4 + 3]) continue;
+      const key = (pav[i * 4] << 16) | (pav[i * 4 + 1] << 8) | pav[i * 4 + 2];
+      let col = hex.get(key);
+      if (!col) hex.set(key, (col = `#${key.toString(16).padStart(6, "0")}`));
+      g.p(i % WORLD_W, Math.floor(i / WORLD_W), col);
+    }
     drawPond(g);
+    // sparse small tufts
+    for (const { x, y, small } of tuftSpots()) {
+      g.p(x, y, "#5f9f43");
+      g.p(x - 1, y - 1, "#5f9f43");
+      g.p(x + 1, y - 1, "#5f9f43");
+      if (!small) {
+        g.p(x - 2, y - 2, "#79b955");
+        g.p(x + 2, y - 2, "#79b955");
+      }
+    }
     // flowers in patches by the doors, pond and trail
     const colors = ["#ffffff", "#ff9ec4", "#ffd84a", "#9ec9ff", "#ff7b6b"];
     for (const { x, y, roll } of flowerSpots()) {
@@ -46,44 +59,9 @@ export function drawGround(scene: Phaser.Scene) {
 
 /** Seamless grass patch, tiled under and around the village by a tile sprite (see TownScene). */
 export function drawGroundFill(scene: Phaser.Scene) {
-  const rng = mulberry32(5);
   makeTexture(scene, "ground_fill", 64, 64, (g) => {
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        g.r(c * TILE, r * TILE, TILE, TILE, GRASS[Math.floor(rng() * 3)]);
-        for (let i = 0; i < 4; i++) {
-          const px = c * TILE + Math.floor(rng() * 15);
-          const py = r * TILE + 1 + Math.floor(rng() * 14);
-          g.p(px, py, "#5aa43c");
-          g.p(px + 1, py - 1, "#86d062");
-        }
-      }
-    }
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) lawn(g, c, r, 64);
   });
-}
-
-function drawPathTile(g: Painter, c: number, r: number, x: number, y: number, rng: () => number) {
-  if (isPlaza(c, r)) {
-    g.r(x, y, TILE, TILE, "#bdb6a6");
-    g.r(x, y, 8, 8, "#c9c2b2");
-    g.r(x + 8, y + 8, 8, 8, "#c9c2b2");
-    g.r(x + 8, y, 1, 8, "#a39c8b");
-    g.r(x, y + 8, 16, 1, "#a39c8b");
-    g.r(x, y, 16, 1, "#a39c8b");
-    g.r(x, y, 1, 16, "#a39c8b");
-  } else {
-    g.r(x, y, TILE, TILE, SAND[Math.floor(rng() * 3)]);
-    for (let i = 0; i < 3; i++) g.p(x + Math.floor(rng() * 16), y + Math.floor(rng() * 16), "#c4a572");
-    g.p(x + Math.floor(rng() * 16), y + Math.floor(rng() * 16), "#f0dcb0");
-  }
-  // soft grass-side edges
-  const edge = (cond: boolean, ex: number, ey: number, ew: number, eh: number) => {
-    if (cond) g.r(x + ex, y + ey, ew, eh, "#b99a68");
-  };
-  edge(!isPath(c, r - 1), 0, 0, 16, 1);
-  edge(!isPath(c, r + 1), 0, 15, 16, 1);
-  edge(!isPath(c - 1, r), 0, 0, 1, 16);
-  edge(!isPath(c + 1, r), 15, 0, 1, 16);
 }
 
 function drawPond(g: Painter) {
@@ -109,6 +87,8 @@ const TREE_COLORS: Record<TreeKind, [string, string, string]> = {
   oak2: ["#3a8a30", "#52a83c", "#86d062"],
   blossom: ["#d9709a", "#f19bbd", "#ffd0e0"],
   autumn: ["#c8681f", "#e48a2a", "#f7c25a"],
+  pine: ["#1f5a3c", "#2d7550", "#4f9a6c"], // fallback only: the pine sprite in public/sprites replaces it
+  birch: ["#4f9a3a", "#76c04a", "#b5e86a"],
 };
 
 export function drawProps(scene: Phaser.Scene) {
@@ -155,6 +135,10 @@ export function drawProps(scene: Phaser.Scene) {
   makeTexture(scene, "fence", 16, 10, (g) => {
     g.r(0, 3, 16, 1, "#e9dcc0"); g.r(0, 6, 16, 1, "#e9dcc0");
     for (const x of [1, 6, 11]) { g.r(x, 1, 3, 9, "#f4ead2"); g.r(x, 1, 3, 1, "#fff8e6"); g.r(x + 2, 2, 1, 8, "#cdbf9f"); }
+  }, OUT);
+  makeTexture(scene, "fence_side", 16, 16, (g) => {
+    g.r(7, 0, 2, 16, "#e9dcc0");
+    g.r(6, 5, 4, 7, "#f4ead2"); g.r(6, 5, 4, 1, "#fff8e6"); g.r(9, 6, 1, 6, "#cdbf9f");
   }, OUT);
   makeTexture(scene, "rock", 10, 7, (g) => {
     g.ell(5, 4, 4, 2, "#8d8d96"); g.ell(4, 3, 3, 2, "#aaaab3"); g.p(3, 2, "#d0d0d8");

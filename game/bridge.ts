@@ -1,7 +1,7 @@
 import type { HomeTier } from "@/lib/milestones";
 import type { TownView } from "./viewport";
 
-export type InteractableId = "bank" | "home" | "school" | "kitchen";
+export type InteractableId = "bank" | "home" | "school";
 
 /** Plain handoff between React and the Phaser scene; no Phaser import so React can use it freely. */
 export class TownBridge {

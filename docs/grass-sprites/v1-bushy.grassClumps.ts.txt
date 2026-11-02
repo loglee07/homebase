@@ -1,0 +1,10 @@
+// v1 "bushy" clump sprites (replaced). Five rows, d = dark root, m = mid, l = lit tip; row 2 is the stone's first row.
+export const CLUMPS: string[][] = [
+  ["..l..l..", ".dm.dml.", "dmmdmmmd", ".dmmmmd.", "..ddmd.."],
+  [".l...", ".dm.l", "dmmmd", ".dmd.", "....."],
+  ["..l.....l..", ".dm.ll.dml.", "dmmdmmmdmmd", ".dmmmdmmmd.", "...ddm.dd.."],
+  ["l...", "md.l", "mmdm", ".dm.", "...."],
+  ["l..l...", "dm.dml.", "dmmdmmd", "dmmmmd.", ".ddmd.."],
+  ["......", ".l..l.", "dmddmd", ".dmmd.", "......"],
+  ["...", ".l.", "dmd", ".d.", "..."],
+];

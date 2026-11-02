@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createLocalStore } from "@/lib/localStore";
 import {
   SCHOOL_ERROR_TEXT, SCHOOL_LABEL, SCHOOL_IDS, combine, eventsOn, localDayKey, monthCells, timeLabel, upcoming,
-  type SchoolEvent, type SchoolState,
+  startDay, type SchoolEvent, type SchoolState,
 } from "@/lib/school";
+import { STATUS_TEXT, findCs210Courses, isVisible, markStatus, previewRule, type MarkStatus } from "@/lib/schoolMarks";
 import { UnlockForm, fmtDateTime } from "./BrokeragePanel";
+import type { SchoolMarksClient } from "./useSchoolMarks";
 import type { BrokerageClient } from "./useBrokerage";
 import type { SchoolClient } from "./useSchool";
 
@@ -24,10 +26,18 @@ const fmtTimeOnly = (iso: string) => new Date(iso).toLocaleTimeString("en-US", {
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 const timeText = (e: SchoolEvent) => timeLabel(e, fmtTime);
 
-function EventRow({ e }: { e: SchoolEvent }) {
+/** Keys typed in the checklist controls belong to the form, never to the game (Escape still closes the school). */
+const keepKeys = (e: React.KeyboardEvent) => e.key !== "Escape" && e.stopPropagation();
+
+function EventRow({ e, status, marks }: { e: SchoolEvent; status: MarkStatus; marks: SchoolMarksClient }) {
+  const off = marks.unreadable;
   return (
-    <li className={`sc-event sc-${e.school}${e.cancelled ? " sc-cancelled" : ""}`}>
-      <span className={`sc-time${e.dueTimeUnknown ? " sc-time-unknown" : ""}`}>{timeText(e)}</span>
+    <li className={`sc-event sc-${e.school}${e.cancelled ? " sc-cancelled" : ""}${status ? " sc-marked" : ""}`} data-evid={e.id}>
+      <label className="sc-donebox" onKeyDown={keepKeys}>
+        <input type="checkbox" className="sc-check" checked={status === "done"} disabled={off} onChange={() => marks.toggleDone(e.id)} aria-label={`Mark done: ${e.title}`} />
+        <span aria-hidden>Done</span>
+      </label>
+      {timeText(e) && <span className="sc-time">{timeText(e)}</span>}
       <span className="sc-main">
         <strong>{e.title}</strong>
         <small>
@@ -35,8 +45,14 @@ function EventRow({ e }: { e: SchoolEvent }) {
           {e.course && <span className="sc-course">{e.course}</span>}
           {e.location && <span>{e.location}</span>}
           {e.cancelled && <span className="sc-flag">Cancelled</span>}
+          {status && <span className="sc-mark">{STATUS_TEXT[status]}</span>}
         </small>
       </span>
+      {status !== "rule" && (
+        <button className="bk-link" onKeyDown={keepKeys} disabled={off} onClick={() => marks.toggleIgnored(e.id)} aria-label={`${status === "ignored" ? "Stop ignoring" : "Ignore"}: ${e.title}`}>
+          {status === "ignored" ? "Stop ignoring" : "Ignore"}
+        </button>
+      )}
       {e.url && (
         <a className="bk-link" href={e.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${e.title} in the Canvas calendar (new tab)`}>
           Canvas calendar
@@ -46,9 +62,54 @@ function EventRow({ e }: { e: SchoolEvent }) {
   );
 }
 
-function EventList({ events, empty }: { events: SchoolEvent[]; empty: string }) {
+function EventList({ events, empty, marks }: { events: SchoolEvent[]; empty: string; marks: SchoolMarksClient }) {
   if (events.length === 0) return <p className="bk-note bk-empty">{empty}</p>;
-  return <ul className="sc-list">{events.map((e) => <EventRow key={e.id} e={e} />)}</ul>;
+  return <ul className="sc-list">{events.map((e) => <EventRow key={e.id} e={e} status={markStatus(e, marks.marks)} marks={marks} />)}</ul>;
+}
+
+/** Optional rule: hides SDSU CS 210 labs and "W# Programming Assignment" items. Shows exactly what it would hide before saving. */
+function RulesCard({ events, marks }: { events: SchoolEvent[]; marks: SchoolMarksClient }) {
+  const [pending, setPending] = useState<string | null>(null);
+  const courses = useMemo(() => findCs210Courses(events), [events]);
+  const choice = courses.find((c) => c.courseKey === pending) ?? null;
+  const hits = choice ? previewRule(choice, events) : [];
+  const saved = marks.marks.rules;
+  return (
+    <article className="ft-card sc-rules" aria-labelledby="sc-rules-h">
+      <h3 id="sc-rules-h">Ignore rules</h3>
+      <p className="bk-note">
+        Optional. A rule hides matching items from Upcoming and the town reminder as “Ignored by you”. It does not mean they are done, submitted or worth zero points, and nothing changes in Canvas. Rules apply only to the course they were made for.
+      </p>
+      {saved.map((r) => (
+        <div key={r.id} className="sc-rule" onKeyDown={keepKeys}>
+          <label>
+            <input type="checkbox" checked={r.enabled} disabled={marks.unreadable} onChange={(e) => marks.setRuleEnabled(r.id, e.target.checked)} />{" "}
+            <strong>{SCHOOL_LABEL[r.school]} {r.courseLabel}</strong>: ignore “Lab #” and “W# Programming Assignment”
+          </label>
+          <small>{previewRule(r, events).length} matching now. {r.enabled ? "On." : "Off: these items are shown again."}</small>
+          <button className="bk-link" disabled={marks.unreadable} onClick={() => marks.removeRule(r.id)}>Remove rule</button>
+        </div>
+      ))}
+      {courses.filter((c) => !saved.some((r) => r.courseKey === c.courseKey)).map((c) => (
+        <div key={c.courseKey} className="sc-rule" onKeyDown={keepKeys}>
+          <span>Found {SCHOOL_LABEL[c.school]} course <strong>{c.label}</strong>.</span>
+          <button className="ft-btn" disabled={marks.unreadable} aria-expanded={pending === c.courseKey} onClick={() => setPending(pending === c.courseKey ? null : c.courseKey)}>
+            {pending === c.courseKey ? "Cancel" : "Preview rule"}
+          </button>
+        </div>
+      ))}
+      {courses.length === 0 && saved.length === 0 && <p className="bk-note">No SDSU CS 210 course found in the loaded calendars yet.</p>}
+      {choice && (
+        <div className="sc-preview" role="region" aria-label="Rule preview" onKeyDown={keepKeys}>
+          <p><strong>{hits.length}</strong> {hits.length === 1 ? "item" : "items"} in {choice.label} would be ignored. “Assignment 01”, “Assignment 02” and other titles stay visible.</p>
+          {hits.length > 0 && <ul className="sc-list">{hits.map((e) => <li key={e.id} className="sc-event"><span className="sc-main"><strong>{e.title}</strong><small>{startDay(e)}</small></span></li>)}</ul>}
+          <button className="ft-btn ft-btn-save" onClick={() => { marks.addRule({ preset: "labs-and-w-programming", school: choice.school, courseKey: choice.courseKey, courseLabel: choice.label }); setPending(null); }}>
+            Save rule
+          </button>
+        </div>
+      )}
+    </article>
+  );
 }
 
 function SchoolStatus({ state, busy, nowMs, onRefresh }: { state: SchoolState; busy: boolean; nowMs: number; onRefresh: () => void }) {
@@ -77,7 +138,7 @@ function SchoolStatus({ state, busy, nowMs, onRefresh }: { state: SchoolState; b
   );
 }
 
-function CalendarView({ events, today }: { events: SchoolEvent[]; today: string }) {
+function CalendarView({ events, today, marks }: { events: SchoolEvent[]; today: string; marks: SchoolMarksClient }) {
   const [shown, setShown] = useState(() => {
     const [y, m] = today.split("-").map(Number);
     return { y, m: m - 1 };
@@ -124,7 +185,7 @@ function CalendarView({ events, today }: { events: SchoolEvent[]; today: string 
         })}
       </div>
       <h4 className="sc-day-h">{fmtDay(picked, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h4>
-      <EventList events={eventsOn(events, picked)} empty="Nothing on the calendar this day." />
+      <EventList events={eventsOn(events, picked)} empty="Nothing on the calendar this day." marks={marks} />
     </div>
   );
 }
@@ -132,11 +193,12 @@ function CalendarView({ events, today }: { events: SchoolEvent[]; today: string 
 interface Props {
   access: BrokerageClient;
   school: SchoolClient;
+  marks: SchoolMarksClient;
   onClose: () => void;
 }
 
 /** The School building: Canvas calendar feeds for SDSU and SDCCD, read-only. Calendar data only: no grades, submissions or completion. */
-export function SchoolDashboard({ access, school, onClose }: Props) {
+export function SchoolDashboard({ access, school, marks, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<View>("upcoming");
   // ticks so a refresh button re-enables when its cooldown ends
@@ -161,6 +223,37 @@ export function SchoolDashboard({ access, school, onClose }: Props) {
   }, [onClose]);
 
   const soon = useMemo(() => upcoming(events, todayKey), [events, todayKey]);
+  const [showDone, setShowDone] = useState(false);
+  const [showIgnored, setShowIgnored] = useState(false);
+  const opts = { showDone, showIgnored };
+  const days = useMemo(() => soon.days.map((d) => ({ ...d, events: d.events.filter((e) => isVisible(e, marks.marks, opts)) })).filter((d) => d.events.length > 0), [soon, marks.marks, showDone, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allUpcoming = soon.days.flatMap((d) => d.events);
+  const nDone = allUpcoming.filter((e) => markStatus(e, marks.marks) === "done").length;
+  const nIgnored = allUpcoming.filter((e) => ["ignored", "rule"].includes(markStatus(e, marks.marks) ?? "")).length;
+
+  // When a checked or ignored row leaves the list, focus moves to the next row (else the previous one, else the heading).
+  const panelRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfter = useRef<{ gone: string; next: string | null } | null>(null);
+  const withFocus = (id: string, act: () => void) => {
+    const rows = [...(panelRef.current?.querySelectorAll<HTMLElement>("[data-evid]") ?? [])].map((r) => r.dataset.evid!);
+    const i = rows.indexOf(id);
+    focusAfter.current = { gone: id, next: rows[i + 1] ?? rows[i - 1] ?? null };
+    act();
+  };
+  useEffect(() => {
+    const f = focusAfter.current;
+    if (!f) return;
+    focusAfter.current = null;
+    const stillThere = panelRef.current?.querySelector(`[data-evid="${CSS.escape(f.gone)}"]`);
+    if (stillThere) return; // the row stayed (its own control keeps focus)
+    const target = f.next && panelRef.current?.querySelector<HTMLElement>(`[data-evid="${CSS.escape(f.next)}"] .sc-check`);
+    (target || headingRef.current)?.focus();
+  });
+  const view_marks: SchoolMarksClient = useMemo(
+    () => ({ ...marks, toggleDone: (id) => withFocus(id, () => marks.toggleDone(id)), toggleIgnored: (id) => withFocus(id, () => marks.toggleIgnored(id)) }),
+    [marks],
+  );
   const nothingLoaded = unlocked && school.loaded && configured > 0 && !school.states.some((s) => s.updatedAt);
 
   return (
@@ -246,19 +339,34 @@ export function SchoolDashboard({ access, school, onClose }: Props) {
                   </button>
                 ))}
               </div>
-              <article className="ft-card" id="sc-panel" role="tabpanel" aria-labelledby={`sc-tab-${view}`}>
+              <article className="ft-card" id="sc-panel" role="tabpanel" ref={panelRef} aria-labelledby={`sc-tab-${view}`}>
                 {nothingLoaded && <p className="bk-note bk-empty">Nothing loaded yet. Press Refresh above.</p>}
                 {view === "upcoming" && (
                   <>
-                    <h3>Upcoming</h3>
-                    {soon.days.length === 0 && <p className="bk-note bk-empty">{events.length ? "Nothing due today or in the next 7 days." : "No events loaded."}</p>}
-                    {soon.days.map((d) => (
+                    <h3 ref={headingRef} tabIndex={-1}>Upcoming</h3>
+                    <p className="bk-note">
+                      “Done” is your own checklist. It does not confirm or change anything in Canvas, and Canvas’s submission status is never read. Counts here are unchecked calendar items, not verified unfinished work.
+                    </p>
+                    {marks.unreadable && (
+                      <p className="sc-error" role="alert">
+                        Your saved checklist could not be read, so changes are paused and nothing was overwritten. <button className="bk-link" onClick={marks.startFresh}>Start a fresh checklist</button> (the old data is copied to a backup key first).
+                      </p>
+                    )}
+                    {marks.saveError && <p className="sc-error" role="alert">{marks.saveError}</p>}
+                    {(nDone > 0 || nIgnored > 0) && (
+                      <p className="sc-toggles">
+                        {nDone > 0 && <label><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Show marked-done items ({nDone})</label>}
+                        {nIgnored > 0 && <label><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} /> Show ignored ({nIgnored})</label>}
+                      </p>
+                    )}
+                    {days.length === 0 && <p className="bk-note bk-empty">{events.length ? (soon.days.length ? "Everything coming up is marked done or ignored." : "Nothing due today or in the next 7 days.") : "No events loaded."}</p>}
+                    {days.map((d) => (
                       <section key={d.day} className="sc-day">
                         <h4>{d.day === todayKey ? "Today · " : ""}{fmtDay(d.day, { weekday: "long", month: "short", day: "numeric" })}</h4>
-                        <EventList events={d.events} empty="" />
+                        <EventList events={d.events} empty="" marks={view_marks} />
                       </section>
                     ))}
-                    {soon.days.length > 0 && soon.emptyDays.length > 0 && (
+                    {days.length > 0 && soon.emptyDays.length > 0 && (
                       <p className="bk-note">Nothing on {soon.emptyDays.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", ")}.</p>
                     )}
                   </>
@@ -266,10 +374,11 @@ export function SchoolDashboard({ access, school, onClose }: Props) {
                 {view === "calendar" && (
                   <>
                     <h3>Calendar</h3>
-                    <CalendarView events={events} today={todayKey} />
+                    <CalendarView events={events} today={todayKey} marks={view_marks} />
                   </>
                 )}
               </article>
+              <RulesCard events={events} marks={marks} />
             </>
           )}
         </div>
